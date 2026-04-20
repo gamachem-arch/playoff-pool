@@ -182,14 +182,14 @@ function parseSeries(data) {
       topWins: s.topSeedWins ?? 0,
       bottomWins: s.bottomSeedWins ?? 0,
       round: s.playoffRound ?? 1,
-      letter: s.seriesLetter?.toLowerCase(),
+      letter: s.seriesLetter?.toUpperCase(),
     };
   }
 
   // Also build by letter for later rounds
   const byLetter = {};
   for (const s of data.series) {
-    byLetter[s.seriesLetter?.toLowerCase()] = {
+    byLetter[s.seriesLetter?.toUpperCase()] = {
       topTeam: s.topSeedTeam?.abbrev || "TBD",
       bottomTeam: s.bottomSeedTeam?.abbrev || "TBD",
       topWins: s.topSeedWins ?? 0,
@@ -208,9 +208,9 @@ function parseSeries(data) {
   const r1e = R1_EAST.map(m => findR1(m.topTeam, m.bottomTeam) || {...m, topWins:0, bottomWins:0, round:1});
 
   // Later rounds by letter
-  const r2 = ["i","j","k","l"].map(l => byLetter[l] || null);
-  const r3 = ["m","n"].map(l => byLetter[l] || null);
-  const r4 = byLetter["o"] || null;
+  const r2 = ["I","J","K","L"].map(l => byLetter[l] || null);
+  const r3 = ["M","N"].map(l => byLetter[l] || null);
+  const r4 = byLetter["O"] || null;
 
   return { r1w, r1e, r2, r3, r4 };
 }
