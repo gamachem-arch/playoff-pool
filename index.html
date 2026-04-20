@@ -71,6 +71,11 @@
   .team-wins.leading { color: var(--green); }
   .team-name.eliminated { opacity: 0.3; text-decoration: line-through; }
   .team-name.champion { color: #fbbf24; }
+  
+  .game-badge { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 600; color: var(--muted); letter-spacing: 0.5px; float: right; }
+  .game-badge.live { color: #f87171; }
+  .game-badge.final { color: var(--green); }
+
   .tbd-row { padding: 9px 12px; }
   .tbd-text { font-family: 'Barlow Condensed', sans-serif; font-size: 14px; color: var(--muted); }
 
@@ -222,10 +227,10 @@ function fallbackParsed() {
   };
 }
 
-function seriesCard(s, label, oddsMap) {
+function seriesCard(s, label, oddsMap, gamesData) {
   if (!s || s.topTeam === "TBD") {
     return `<div class="series">
-      <div class="series-header"><div class="series-round">${label}</div></div>
+      <div class="series-header"><div class="series-round">${label}${getGameBadge(gamesData,t1,t2)}</div></div>
       <div class="tbd-row"><span class="tbd-text">TBD</span></div>
       <div class="tbd-row" style="border-top:1px solid var(--border)"><span class="tbd-text">TBD</span></div>
     </div>`;
@@ -236,7 +241,7 @@ function seriesCard(s, label, oddsMap) {
   const o2 = oddsMap[t2] || "";
   const logoBase = 'https://assets.nhle.com/logos/nhl/svg/';
   return `<div class="series">
-    <div class="series-header"><div class="series-round">${label}</div></div>
+    <div class="series-header"><div class="series-round">${label}${getGameBadge(gamesData,t1,t2)}</div></div>
     <div class="team-row">
       ${pill(t1)}
       <img class="tlogo" src="${logoBase}${t1}_light.svg" onerror="this.style.display='none'">
@@ -277,10 +282,53 @@ function buildStandings(oddsMap) {
   </div>`;
 }
 
+
+function formatGameTime(utcStr) {
+  var d = new Date(utcStr);
+  var h = d.getHours(), m = d.getMinutes();
+  var ampm = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  return h + (m ? ":" + String(m).padStart(2,"0") : "") + " " + ampm;
+}
+
+function getGameBadge(gamesData, t1, t2) {
+  if (!gamesData || !gamesData.length) return "";
+  function toEasternDate(utcStr) {
+    var d = new Date(utcStr);
+    d.setHours(d.getHours() - 4); // UTC to Eastern (EDT)
+    return d.toISOString().substring(0,10);
+  }
+  var todayEastern = toEasternDate(new Date().toISOString());
+  for (var i = 0; i < gamesData.length; i++) {
+    var g = gamesData[i];
+    var teams = [g.away, g.home];
+    if (teams.indexOf(t1) >= 0 && teams.indexOf(t2) >= 0) {
+      var gameDate = toEasternDate(g.startUTC);
+      if (gameDate !== todayEastern) continue;
+      var state = g.state;
+      if (state === "FUT" || state === "PRE") {
+        return '<span class="game-badge">' + formatGameTime(g.startUTC) + '</span>';
+      } else if (state === "LIVE" || state === "CRIT") {
+        var as = g.awayScore !== null ? g.awayScore : 0;
+        var hs = g.homeScore !== null ? g.homeScore : 0;
+        var per = g.period ? " P"+g.period : "";
+        return '<span class="game-badge live">🔴 ' + g.away + " " + as + " · " + g.home + " " + hs + per + '</span>';
+      } else if (state === "FINAL" || state === "OFF") {
+        var as = g.awayScore !== null ? g.awayScore : 0;
+        var hs = g.homeScore !== null ? g.homeScore : 0;
+        return '<span class="game-badge final">' + g.away + " " + as + " · " + g.home + " " + hs + " F</span>";
+      }
+    }
+  }
+  return "";
+}
+
 async function render() {
   document.getElementById("subtitle").textContent = "Refreshing...";
   try {
-    const [oddsMap, nhlRaw] = await Promise.all([fetchOdds(), fetchNHL()]);
+    const [oddsMap, nhlRaw, gamesRaw] = await Promise.all([fetchOdds(), fetchNHL(),
+      fetch(ODDS_API+"?action=games&t="+Date.now()).then(function(r){return r.json();}).catch(function(){return [];})
+    ]);
     const parsed = parseSeries(nhlRaw) || fallbackParsed();
     const { r1w, r1e, r2, r3, r4 } = parsed;
 
@@ -295,8 +343,8 @@ async function render() {
         <div class="conf-label">Eastern Conference</div>
       </div>
       <div class="four-col">
-        ${r1w.map(s => seriesCard(s, "Round 1", oddsMap)).join("")}
-        ${r1e.map(s => seriesCard(s, "Round 1", oddsMap)).join("")}
+        ${r1w.map(s => seriesCard(s, "Round 1", oddsMap, gamesRaw)).join("")}
+        ${r1e.map(s => seriesCard(s, "Round 1", oddsMap, gamesRaw)).join("")}
       </div>
     </div>`;
 
@@ -320,8 +368,8 @@ async function render() {
       html += `<div class="round-section">
         <div class="round-title">Conference Finals</div>
         <div class="two-col">
-          ${seriesCard(r3[0], "West Conference Final", oddsMap)}
-          ${seriesCard(r3[1], "East Conference Final", oddsMap)}
+          ${seriesCard(r3[0], "West Conference Final", oddsMap, gamesRaw)}
+          ${seriesCard(r3[1], "East Conference Final", oddsMap, gamesRaw)}
         </div>
       </div>`;
     }
@@ -329,7 +377,7 @@ async function render() {
     if (hasR4) {
       html += `<div class="round-section">
         <div class="round-title">Stanley Cup Final</div>
-        <div class="one-col">${seriesCard(r4, "Stanley Cup Final", oddsMap)}</div>
+        <div class="one-col">${seriesCard(r4, "Stanley Cup Final", oddsMap, gamesRaw)}</div>
       </div>`;
     }
 
