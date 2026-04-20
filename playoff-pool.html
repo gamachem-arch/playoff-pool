@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Playoff Pool">
+<title>Stanley Cup Playoffs 2026 — Pool Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --surface2: #1a2236;
+    --border: rgba(255,255,255,0.08);
+    --text: #f0f4ff;
+    --muted: #6b7a99;
+    --green: #10b981;
+    --CAT: #3b82f6; --CAT-bg: rgba(59,130,246,0.15);
+    --MIC: #10b981; --MIC-bg: rgba(16,185,129,0.15);
+    --MAR: #f59e0b; --MAR-bg: rgba(245,158,11,0.15);
+    --DAN: #ec4899; --DAN-bg: rgba(236,72,153,0.15);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Barlow', sans-serif; min-height: 100vh; padding: 24px 16px 48px; }
+
+  .header { text-align: center; margin-bottom: 28px; }
+  .header-eyebrow { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; letter-spacing: 3px; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; }
+  .header h1 { font-family: 'Barlow Condensed', sans-serif; font-size: clamp(30px, 6vw, 56px); font-weight: 900; text-transform: uppercase; letter-spacing: 2px; line-height: 1; background: linear-gradient(135deg, #fff 0%, #93c5fd 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .header-sub { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .refresh-btn { margin-top: 10px; background: var(--surface2); border: 1px solid var(--border); color: var(--muted); font-family: 'Barlow', sans-serif; font-size: 11px; padding: 5px 16px; border-radius: 20px; cursor: pointer; transition: all 0.2s; }
+  .refresh-btn:hover { color: var(--text); border-color: rgba(255,255,255,0.3); }
+
+  .legend { display: flex; justify-content: center; gap: 20px; margin-bottom: 28px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  .round-section { max-width: 1120px; margin: 0 auto 8px; }
+  .round-title { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); text-align: center; padding: 10px 0; border-top: 1px solid var(--border); margin-bottom: 8px; }
+  .conf-labels { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 4px; }
+  .conf-label { font-family: 'Barlow Condensed', sans-serif; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); text-align: center; }
+  .four-col { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .one-col { max-width: 500px; margin: 0 auto; }
+
+  .series { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .series-header { padding: 5px 12px; background: var(--surface2); border-bottom: 1px solid var(--border); }
+  .series-round { font-family: 'Barlow Condensed', sans-serif; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
+  .team-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; }
+  .team-row + .team-row { border-top: 1px solid var(--border); }
+  .pool-pill { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; padding: 2px 7px; border-radius: 20px; min-width: 34px; text-align: center; flex-shrink: 0; }
+  .pill-CAT { background: var(--CAT-bg); color: var(--CAT); }
+  .pill-MIC { background: var(--MIC-bg); color: var(--MIC); }
+  .pill-MAR { background: var(--MAR-bg); color: var(--MAR); }
+  .pill-DAN { background: var(--DAN-bg); color: var(--DAN); }
+  .pill-empty { min-width: 34px; flex-shrink: 0; display: inline-block; }
+  .team-name { font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 700; letter-spacing: 0.5px; flex: 1; text-transform: uppercase; }
+  .team-odds { font-size: 10px; color: var(--green); flex-shrink: 0; font-weight: 500; }
+  .team-wins { font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 900; min-width: 18px; text-align: right; color: var(--muted); flex-shrink: 0; }
+  .team-wins.leading { color: var(--green); }
+  .team-name.eliminated { opacity: 0.3; text-decoration: line-through; }
+  .team-name.champion { color: #fbbf24; }
+  .tbd-row { padding: 9px 12px; }
+  .tbd-text { font-family: 'Barlow Condensed', sans-serif; font-size: 14px; color: var(--muted); }
+
+  .standings { max-width: 1120px; margin: 24px auto 0; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px; }
+  .standings-title { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 16px; }
+  .standings-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .standing-card { background: var(--surface2); border-radius: 12px; padding: 16px 12px; text-align: center; border: 1px solid var(--border); position: relative; overflow: hidden; }
+  .standing-card.first::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, #fbbf24, transparent); }
+  .standing-rank { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; letter-spacing: 1px; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; }
+  .standing-name { font-size: 12px; color: var(--muted); margin: 4px 0 6px; }
+  .standing-pct { font-family: 'Barlow Condensed', sans-serif; font-size: 36px; font-weight: 900; line-height: 1; }
+  .standing-teams { font-size: 10px; color: var(--muted); margin-top: 6px; line-height: 1.7; }
+
+  .loading { text-align: center; padding: 60px 20px; color: var(--muted); }
+  .error { text-align: center; padding: 40px; color: #f87171; font-size: 13px; background: var(--surface); border-radius: 12px; max-width: 500px; margin: 0 auto; }
+
+  @media (max-width: 640px) {
+    .four-col { grid-template-columns: 1fr 1fr; }
+    .standings-grid { grid-template-columns: repeat(2, 1fr); }
+    .team-name { font-size: 14px; }
+    .standing-pct { font-size: 28px; }
+  }
+  @media (max-width: 400px) {
+    .two-col { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-eyebrow">2026 NHL Postseason</div>
+  <h1>Stanley Cup Playoffs</h1>
+  <div class="header-sub" id="subtitle">Loading live data...</div>
+  <button class="refresh-btn" onclick="render()">↻ Refresh</button>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:var(--CAT)"></div>CAT — Catherine</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--MIC)"></div>MIC — Michel</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--MAR)"></div>MAR — Martin</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--DAN)"></div>DAN — Danica</div>
+</div>
+
+<div id="main"><div class="loading">Fetching live NHL data + MoneyPuck odds...</div></div>
+<div id="standings-wrap"></div>
+
+<script>
+const ODDS_API = "https://script.google.com/macros/s/AKfycbyeMYsFI6sVfRnuPJgX_6-Ev9qr7dosfnpD-T-s9UtmMoQ03fjfHy6wuY3AJ63wU2wY/exec";
+
+const POOL = {
+  CAT: ["COL","EDM","TBL","LAK"],
+  MIC: ["CAR","VGK","DAL","BOS"],
+  MAR: ["MIN","OTT","PHI","UTA"],
+  DAN: ["BUF","MTL","PIT","ANA"]
+};
+const PLAYER_NAMES = { CAT:"Catherine", MIC:"Michel", MAR:"Martin", DAN:"Danica" };
+
+function getPool(team) {
+  for (const [p, teams] of Object.entries(POOL)) {
+    if (teams.includes(team)) return p;
+  }
+  return null;
+}
+
+function pill(team) {
+  const p = getPool(team);
+  if (!p) return `<span class="pill-empty"></span>`;
+  return `<span class="pool-pill pill-${p}">${p}</span>`;
+}
+
+async function fetchOdds() {
+  try {
+    const res = await fetch(ODDS_API);
+    const data = await res.json();
+    // Keys come back as team abbreviations, values as "12.7%"
+    const oddsMap = {};
+    for (const [k, v] of Object.entries(data)) {
+      oddsMap[k.toUpperCase().trim()] = v;
+    }
+    return oddsMap;
+  } catch(e) {
+    console.warn("Odds fetch failed:", e);
+    return {};
+  }
+}
+
+async function fetchNHL() {
+  try {
+    const res = await fetch("https://api-web.nhle.com/v1/playoffs/carousel/20252026/playoffSeries");
+    return res.json();
+  } catch(e) { return null; }
+}
+
+function parseSeries(data) {
+  if (!data?.series) return null;
+  const result = {};
+  for (const s of data.series) {
+    result[s.seriesLetter?.toLowerCase()] = {
+      topTeam: s.topSeedTeam?.abbrev || "TBD",
+      bottomTeam: s.bottomSeedTeam?.abbrev || "TBD",
+      topWins: s.topSeedWins ?? 0,
+      bottomWins: s.bottomSeedWins ?? 0,
+      round: s.playoffRound ?? 1,
+    };
+  }
+  return result;
+}
+
+function fallback() {
+  return {
+    a:{topTeam:"COL",bottomTeam:"LAK",topWins:1,bottomWins:0,round:1},
+    b:{topTeam:"DAL",bottomTeam:"MIN",topWins:0,bottomWins:1,round:1},
+    c:{topTeam:"VGK",bottomTeam:"UTA",topWins:0,bottomWins:0,round:1},
+    d:{topTeam:"EDM",bottomTeam:"ANA",topWins:0,bottomWins:0,round:1},
+    e:{topTeam:"CAR",bottomTeam:"OTT",topWins:1,bottomWins:0,round:1},
+    f:{topTeam:"TBL",bottomTeam:"MTL",topWins:0,bottomWins:1,round:1},
+    g:{topTeam:"BUF",bottomTeam:"BOS",topWins:1,bottomWins:0,round:1},
+    h:{topTeam:"PIT",bottomTeam:"PHI",topWins:0,bottomWins:1,round:1},
+  };
+}
+
+function seriesCard(s, label, oddsMap) {
+  if (!s || s.topTeam === "TBD") {
+    return `<div class="series">
+      <div class="series-header"><div class="series-round">${label}</div></div>
+      <div class="tbd-row"><span class="tbd-text">TBD</span></div>
+      <div class="tbd-row" style="border-top:1px solid var(--border)"><span class="tbd-text">TBD</span></div>
+    </div>`;
+  }
+  const {topTeam:t1, bottomTeam:t2, topWins:w1, bottomWins:w2} = s;
+  const t1won = w1===4, t2won = w2===4;
+  const o1 = oddsMap[t1] || "";
+  const o2 = oddsMap[t2] || "";
+  return `<div class="series">
+    <div class="series-header"><div class="series-round">${label}</div></div>
+    <div class="team-row">
+      ${pill(t1)}
+      <span class="team-name ${t2won?'eliminated':''} ${t1won?'champion':''}">${t1}</span>
+      ${o1?`<span class="team-odds">${o1}</span>`:''}
+      <span class="team-wins ${w1>w2?'leading':''}">${w1}</span>
+    </div>
+    <div class="team-row">
+      ${pill(t2)}
+      <span class="team-name ${t1won?'eliminated':''} ${t2won?'champion':''}">${t2}</span>
+      ${o2?`<span class="team-odds">${o2}</span>`:''}
+      <span class="team-wins ${w2>w1?'leading':''}">${w2}</span>
+    </div>
+  </div>`;
+}
+
+function buildStandings(oddsMap) {
+  const totals = Object.entries(POOL).map(([player, teams]) => {
+    let total = 0;
+    for (const t of teams) total += parseFloat((oddsMap[t]||"0%").replace("%",""));
+    return { player, name: PLAYER_NAMES[player], total, teams };
+  }).sort((a,b) => b.total - a.total);
+
+  const ranks = ["1st","2nd","3rd","4th"];
+  return `<div class="standings">
+    <div class="standings-title">Pool standings — combined cup odds</div>
+    <div class="standings-grid">
+      ${totals.map((p,i) => `
+        <div class="standing-card ${i===0?'first':''}">
+          <div class="standing-rank">${ranks[i]}</div>
+          <span class="pool-pill pill-${p.player}">${p.player}</span>
+          <div class="standing-name">${p.name}</div>
+          <div class="standing-pct" style="color:var(--${p.player})">${p.total.toFixed(1)}%</div>
+          <div class="standing-teams">${p.teams.join(" · ")}</div>
+        </div>`).join("")}
+    </div>
+  </div>`;
+}
+
+async function render() {
+  document.getElementById("subtitle").textContent = "Refreshing...";
+  try {
+    const [oddsMap, nhlRaw] = await Promise.all([fetchOdds(), fetchNHL()]);
+    const s = parseSeries(nhlRaw) || fallback();
+
+    const r1West = [s.a, s.b, s.c, s.d];
+    const r1East = [s.e, s.f, s.g, s.h];
+    const hasR2 = s.i || s.j || s.k || s.l;
+    const hasR3 = s.m || s.n;
+    const hasR4 = s.o;
+
+    let html = `<div class="round-section">
+      <div class="round-title">Round 1</div>
+      <div class="conf-labels">
+        <div class="conf-label">Western Conference</div>
+        <div class="conf-label">Eastern Conference</div>
+      </div>
+      <div class="four-col">
+        ${r1West.map(x => seriesCard(x,"Round 1",oddsMap)).join("")}
+        ${r1East.map(x => seriesCard(x,"Round 1",oddsMap)).join("")}
+      </div>
+    </div>`;
+
+    if (hasR2) {
+      html += `<div class="round-section">
+        <div class="round-title">Round 2</div>
+        <div class="conf-labels">
+          <div class="conf-label">Western Conference</div>
+          <div class="conf-label">Eastern Conference</div>
+        </div>
+        <div class="four-col">
+          ${seriesCard(s.i,"West R2",oddsMap)}
+          ${seriesCard(s.j,"West R2",oddsMap)}
+          ${seriesCard(s.k,"East R2",oddsMap)}
+          ${seriesCard(s.l,"East R2",oddsMap)}
+        </div>
+      </div>`;
+    }
+
+    if (hasR3) {
+      html += `<div class="round-section">
+        <div class="round-title">Conference Finals</div>
+        <div class="two-col">
+          ${seriesCard(s.m,"West Conference Final",oddsMap)}
+          ${seriesCard(s.n,"East Conference Final",oddsMap)}
+        </div>
+      </div>`;
+    }
+
+    if (hasR4) {
+      html += `<div class="round-section">
+        <div class="round-title">Stanley Cup Final</div>
+        <div class="one-col">${seriesCard(s.o,"Stanley Cup Final",oddsMap)}</div>
+      </div>`;
+    }
+
+    document.getElementById("main").innerHTML = html;
+    document.getElementById("standings-wrap").innerHTML = buildStandings(oddsMap);
+
+    const oddsLoaded = Object.keys(oddsMap).length > 0;
+    document.getElementById("subtitle").textContent =
+      `Live NHL scores + ${oddsLoaded?"MoneyPuck odds":"(odds unavailable)"} · Updated ${new Date().toLocaleTimeString()}`;
+
+  } catch(e) {
+    document.getElementById("main").innerHTML = `<div class="error">Error: ${e.message}</div>`;
+    document.getElementById("subtitle").textContent = "Failed to load";
+  }
+}
+
+render();
+setInterval(render, 3600000);
+</script>
+</body>
+</html>
