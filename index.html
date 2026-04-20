@@ -168,46 +168,33 @@ async function fetchNHL() {
 }
 
 function parseSeries(data) {
-  if (!data?.series) return null;
+  // data is a flat array from Apps Script: [{letter, round, topTeam, bottomTeam, topWins, bottomWins}]
+  if (!Array.isArray(data)) return null;
 
-  // Build lookup by team pairs so order doesn't matter
   const byTeams = {};
-  for (const s of data.series) {
-    const t1 = s.topSeedTeam?.abbrev;
-    const t2 = s.bottomSeedTeam?.abbrev;
-    const key = [t1, t2].sort().join("-");
-    byTeams[key] = {
+  const byLetter = {};
+
+  for (const s of data) {
+    const t1 = s.topTeam?.toUpperCase();
+    const t2 = s.bottomTeam?.toUpperCase();
+    const entry = {
       topTeam: t1 || "TBD",
       bottomTeam: t2 || "TBD",
-      topWins: s.topSeedWins ?? 0,
-      bottomWins: s.bottomSeedWins ?? 0,
-      round: s.playoffRound ?? 1,
-      letter: s.seriesLetter?.toUpperCase(),
+      topWins: s.topWins ?? 0,
+      bottomWins: s.bottomWins ?? 0,
+      round: s.round ?? 1,
     };
+    if (t1 && t2) byTeams[[t1,t2].sort().join("-")] = entry;
+    if (s.letter) byLetter[s.letter.toUpperCase()] = entry;
   }
 
-  // Also build by letter for later rounds
-  const byLetter = {};
-  for (const s of data.series) {
-    byLetter[s.seriesLetter?.toUpperCase()] = {
-      topTeam: s.topSeedTeam?.abbrev || "TBD",
-      bottomTeam: s.bottomSeedTeam?.abbrev || "TBD",
-      topWins: s.topSeedWins ?? 0,
-      bottomWins: s.bottomSeedWins ?? 0,
-      round: s.playoffRound ?? 1,
-    };
-  }
-
-  // Match R1 by known team pairs
   function findR1(t1, t2) {
-    const key = [t1, t2].sort().join("-");
-    return byTeams[key] || null;
+    return byTeams[[t1,t2].sort().join("-")] || {topTeam:t1, bottomTeam:t2, topWins:0, bottomWins:0, round:1};
   }
 
-  const r1w = R1_WEST.map(m => findR1(m.topTeam, m.bottomTeam) || {...m, topWins:0, bottomWins:0, round:1});
-  const r1e = R1_EAST.map(m => findR1(m.topTeam, m.bottomTeam) || {...m, topWins:0, bottomWins:0, round:1});
+  const r1w = R1_WEST.map(m => findR1(m.topTeam, m.bottomTeam));
+  const r1e = R1_EAST.map(m => findR1(m.topTeam, m.bottomTeam));
 
-  // Later rounds by letter
   const r2 = ["I","J","K","L"].map(l => byLetter[l] || null);
   const r3 = ["M","N"].map(l => byLetter[l] || null);
   const r4 = byLetter["O"] || null;
