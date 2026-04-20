@@ -17,10 +17,10 @@
     --text: #f0f4ff;
     --muted: #6b7a99;
     --green: #10b981;
-    --CAT: #3b82f6; --CAT-bg: rgba(59,130,246,0.15);
+    --CAT: #ec4899; --CAT-bg: rgba(236,72,153,0.15);
     --MIC: #10b981; --MIC-bg: rgba(16,185,129,0.15);
     --MAR: #f59e0b; --MAR-bg: rgba(245,158,11,0.15);
-    --DAN: #ec4899; --DAN-bg: rgba(236,72,153,0.15);
+    --DAN: #a855f7; --DAN-bg: rgba(168,85,247,0.15);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: var(--bg); color: var(--text); font-family: 'Barlow', sans-serif; min-height: 100vh; padding: 24px 16px 48px; }
@@ -118,6 +118,20 @@ const POOL = {
 };
 const PLAYER_NAMES = { CAT:"Catherine", MIC:"Michel", MAR:"Martin", DAN:"Danica" };
 
+// Known R1 matchups as fallback and for ordering
+const R1_WEST = [
+  {topTeam:"COL",bottomTeam:"LAK"},
+  {topTeam:"DAL",bottomTeam:"MIN"},
+  {topTeam:"VGK",bottomTeam:"UTA"},
+  {topTeam:"EDM",bottomTeam:"ANA"},
+];
+const R1_EAST = [
+  {topTeam:"CAR",bottomTeam:"OTT"},
+  {topTeam:"TBL",bottomTeam:"MTL"},
+  {topTeam:"BUF",bottomTeam:"BOS"},
+  {topTeam:"PIT",bottomTeam:"PHI"},
+];
+
 function getPool(team) {
   for (const [p, teams] of Object.entries(POOL)) {
     if (teams.includes(team)) return p;
@@ -135,7 +149,6 @@ async function fetchOdds() {
   try {
     const res = await fetch(ODDS_API);
     const data = await res.json();
-    // Keys come back as team abbreviations, values as "12.7%"
     const oddsMap = {};
     for (const [k, v] of Object.entries(data)) {
       oddsMap[k.toUpperCase().trim()] = v;
@@ -156,9 +169,27 @@ async function fetchNHL() {
 
 function parseSeries(data) {
   if (!data?.series) return null;
-  const result = {};
+
+  // Build lookup by team pairs so order doesn't matter
+  const byTeams = {};
   for (const s of data.series) {
-    result[s.seriesLetter?.toLowerCase()] = {
+    const t1 = s.topSeedTeam?.abbrev;
+    const t2 = s.bottomSeedTeam?.abbrev;
+    const key = [t1, t2].sort().join("-");
+    byTeams[key] = {
+      topTeam: t1 || "TBD",
+      bottomTeam: t2 || "TBD",
+      topWins: s.topSeedWins ?? 0,
+      bottomWins: s.bottomSeedWins ?? 0,
+      round: s.playoffRound ?? 1,
+      letter: s.seriesLetter?.toLowerCase(),
+    };
+  }
+
+  // Also build by letter for later rounds
+  const byLetter = {};
+  for (const s of data.series) {
+    byLetter[s.seriesLetter?.toLowerCase()] = {
       topTeam: s.topSeedTeam?.abbrev || "TBD",
       bottomTeam: s.bottomSeedTeam?.abbrev || "TBD",
       topWins: s.topSeedWins ?? 0,
@@ -166,19 +197,31 @@ function parseSeries(data) {
       round: s.playoffRound ?? 1,
     };
   }
-  return result;
+
+  // Match R1 by known team pairs
+  function findR1(t1, t2) {
+    const key = [t1, t2].sort().join("-");
+    return byTeams[key] || null;
+  }
+
+  const r1w = R1_WEST.map(m => findR1(m.topTeam, m.bottomTeam) || {...m, topWins:0, bottomWins:0, round:1});
+  const r1e = R1_EAST.map(m => findR1(m.topTeam, m.bottomTeam) || {...m, topWins:0, bottomWins:0, round:1});
+
+  // Later rounds by letter
+  const r2 = ["i","j","k","l"].map(l => byLetter[l] || null);
+  const r3 = ["m","n"].map(l => byLetter[l] || null);
+  const r4 = byLetter["o"] || null;
+
+  return { r1w, r1e, r2, r3, r4 };
 }
 
-function fallback() {
+function fallbackParsed() {
   return {
-    a:{topTeam:"COL",bottomTeam:"LAK",topWins:1,bottomWins:0,round:1},
-    b:{topTeam:"DAL",bottomTeam:"MIN",topWins:0,bottomWins:1,round:1},
-    c:{topTeam:"VGK",bottomTeam:"UTA",topWins:0,bottomWins:0,round:1},
-    d:{topTeam:"EDM",bottomTeam:"ANA",topWins:0,bottomWins:0,round:1},
-    e:{topTeam:"CAR",bottomTeam:"OTT",topWins:1,bottomWins:0,round:1},
-    f:{topTeam:"TBL",bottomTeam:"MTL",topWins:0,bottomWins:1,round:1},
-    g:{topTeam:"BUF",bottomTeam:"BOS",topWins:1,bottomWins:0,round:1},
-    h:{topTeam:"PIT",bottomTeam:"PHI",topWins:0,bottomWins:1,round:1},
+    r1w: R1_WEST.map(m => ({...m, topWins:0, bottomWins:0, round:1})),
+    r1e: R1_EAST.map(m => ({...m, topWins:0, bottomWins:0, round:1})),
+    r2: [null, null, null, null],
+    r3: [null, null],
+    r4: null,
   };
 }
 
@@ -238,13 +281,12 @@ async function render() {
   document.getElementById("subtitle").textContent = "Refreshing...";
   try {
     const [oddsMap, nhlRaw] = await Promise.all([fetchOdds(), fetchNHL()]);
-    const s = parseSeries(nhlRaw) || fallback();
+    const parsed = parseSeries(nhlRaw) || fallbackParsed();
+    const { r1w, r1e, r2, r3, r4 } = parsed;
 
-    const r1West = [s.a, s.b, s.c, s.d];
-    const r1East = [s.e, s.f, s.g, s.h];
-    const hasR2 = s.i || s.j || s.k || s.l;
-    const hasR3 = s.m || s.n;
-    const hasR4 = s.o;
+    const hasR2 = r2.some(Boolean);
+    const hasR3 = r3.some(Boolean);
+    const hasR4 = Boolean(r4);
 
     let html = `<div class="round-section">
       <div class="round-title">Round 1</div>
@@ -253,8 +295,8 @@ async function render() {
         <div class="conf-label">Eastern Conference</div>
       </div>
       <div class="four-col">
-        ${r1West.map(x => seriesCard(x,"Round 1",oddsMap)).join("")}
-        ${r1East.map(x => seriesCard(x,"Round 1",oddsMap)).join("")}
+        ${r1w.map(s => seriesCard(s, "Round 1", oddsMap)).join("")}
+        ${r1e.map(s => seriesCard(s, "Round 1", oddsMap)).join("")}
       </div>
     </div>`;
 
@@ -266,10 +308,10 @@ async function render() {
           <div class="conf-label">Eastern Conference</div>
         </div>
         <div class="four-col">
-          ${seriesCard(s.i,"West R2",oddsMap)}
-          ${seriesCard(s.j,"West R2",oddsMap)}
-          ${seriesCard(s.k,"East R2",oddsMap)}
-          ${seriesCard(s.l,"East R2",oddsMap)}
+          ${seriesCard(r2[0], "West R2", oddsMap)}
+          ${seriesCard(r2[1], "West R2", oddsMap)}
+          ${seriesCard(r2[2], "East R2", oddsMap)}
+          ${seriesCard(r2[3], "East R2", oddsMap)}
         </div>
       </div>`;
     }
@@ -278,8 +320,8 @@ async function render() {
       html += `<div class="round-section">
         <div class="round-title">Conference Finals</div>
         <div class="two-col">
-          ${seriesCard(s.m,"West Conference Final",oddsMap)}
-          ${seriesCard(s.n,"East Conference Final",oddsMap)}
+          ${seriesCard(r3[0], "West Conference Final", oddsMap)}
+          ${seriesCard(r3[1], "East Conference Final", oddsMap)}
         </div>
       </div>`;
     }
@@ -287,7 +329,7 @@ async function render() {
     if (hasR4) {
       html += `<div class="round-section">
         <div class="round-title">Stanley Cup Final</div>
-        <div class="one-col">${seriesCard(s.o,"Stanley Cup Final",oddsMap)}</div>
+        <div class="one-col">${seriesCard(r4, "Stanley Cup Final", oddsMap)}</div>
       </div>`;
     }
 
