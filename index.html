@@ -293,17 +293,13 @@ function formatGameTime(utcStr) {
 
 function getGameBadge(gamesData, t1, t2) {
   if (!gamesData || !gamesData.length) return "";
-  function toEasternDate(utcStr) {
-    var d = new Date(utcStr);
-    d.setHours(d.getHours() - 4); // UTC to Eastern (EDT)
-    return d.toISOString().substring(0,10);
-  }
-  var todayEastern = toEasternDate(new Date().toISOString());
+  var todayEastern = (function() { var d = new Date(); d.setHours(d.getHours()-4); return d.toISOString().substring(0,10); })();
   for (var i = 0; i < gamesData.length; i++) {
     var g = gamesData[i];
     var teams = [g.away, g.home];
     if (teams.indexOf(t1) >= 0 && teams.indexOf(t2) >= 0) {
-      var gameDate = toEasternDate(g.startUTC);
+      var gd2 = new Date(g.startUTC); gd2.setHours(gd2.getHours()-4);
+      var gameDate = gd2.toISOString().substring(0,10);
       if (gameDate !== todayEastern) continue;
       var state = g.state;
       if (state === "FUT" || state === "PRE") {
