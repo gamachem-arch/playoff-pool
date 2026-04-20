@@ -163,16 +163,7 @@ async function fetchOdds() {
 async function fetchNHL() {
   try {
     const res = await fetch(ODDS_API + "?action=scores");
-    const arr = await res.json();
-    // Convert array back to {series: [...]} format
-    return { series: arr.map(s => ({
-      seriesLetter: s.letter,
-      playoffRound: s.round,
-      topSeedTeam: { abbrev: s.topTeam },
-      bottomSeedTeam: { abbrev: s.bottomTeam },
-      topSeedWins: s.topWins,
-      bottomSeedWins: s.bottomWins
-    }))};
+    return await res.json();
   } catch(e) { return null; }
 }
 
