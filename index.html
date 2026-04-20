@@ -147,7 +147,7 @@ function pill(team) {
 
 async function fetchOdds() {
   try {
-    const res = await fetch(ODDS_API);
+    const res = await fetch(ODDS_API + "?t=" + Date.now());
     const data = await res.json();
     const oddsMap = {};
     for (const [k, v] of Object.entries(data)) {
@@ -162,7 +162,7 @@ async function fetchOdds() {
 
 async function fetchNHL() {
   try {
-    const res = await fetch(ODDS_API + "?action=scores");
+    const res = await fetch(ODDS_API + "?action=scores&t=" + Date.now());
     return await res.json();
   } catch(e) { return null; }
 }
