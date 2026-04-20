@@ -162,8 +162,17 @@ async function fetchOdds() {
 
 async function fetchNHL() {
   try {
-    const res = await fetch("https://api-web.nhle.com/v1/playoff-bracket/2026");
-    return res.json();
+    const res = await fetch(ODDS_API + "?action=scores");
+    const arr = await res.json();
+    // Convert array back to {series: [...]} format
+    return { series: arr.map(s => ({
+      seriesLetter: s.letter,
+      playoffRound: s.round,
+      topSeedTeam: { abbrev: s.topTeam },
+      bottomSeedTeam: { abbrev: s.bottomTeam },
+      topSeedWins: s.topWins,
+      bottomSeedWins: s.bottomWins
+    }))};
   } catch(e) { return null; }
 }
 
@@ -282,7 +291,6 @@ async function render() {
   try {
     const [oddsMap, nhlRaw] = await Promise.all([fetchOdds(), fetchNHL()]);
     const parsed = parseSeries(nhlRaw) || fallbackParsed();
-    if (nhlRaw?.series) { const debug = nhlRaw.series.map(s => `${s.topSeedTeam?.abbrev} ${s.topSeedWins}-${s.bottomSeedWins} ${s.bottomSeedTeam?.abbrev}`).join(" | "); document.getElementById("subtitle").textContent = "RAW: " + debug; }
     const { r1w, r1e, r2, r3, r4 } = parsed;
 
     const hasR2 = r2.some(Boolean);
