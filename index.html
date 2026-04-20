@@ -7,6 +7,30 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Playoff Pool">
 <title>Stanley Cup Playoffs 2026 — Pool Tracker</title>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 180; canvas.height = 180;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#0a0e1a';
+  if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(0,0,180,180,36); ctx.fill(); }
+  else { ctx.fillRect(0,0,180,180); }
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(65,148,50,8);
+  ctx.fillRect(58,138,64,12);
+  ctx.fillRect(82,108,16,32);
+  ctx.beginPath();
+  ctx.moveTo(55,72); ctx.quadraticCurveTo(45,108,82,108);
+  ctx.lineTo(98,108); ctx.quadraticCurveTo(135,108,125,72);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.arc(50,90,11,Math.PI*0.35,Math.PI*1.65); ctx.strokeStyle='#ffffff'; ctx.lineWidth=7; ctx.stroke();
+  ctx.beginPath(); ctx.arc(130,90,11,Math.PI*1.35,Math.PI*0.65); ctx.stroke();
+  ctx.fillStyle='#3b82f6'; ctx.font='bold 20px Arial'; ctx.textAlign='center'; ctx.fillText('2026',90,60);
+  const link = document.createElement('link');
+  link.rel = 'apple-touch-icon'; link.href = canvas.toDataURL('image/png');
+  document.head.appendChild(link);
+});
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
