@@ -162,7 +162,7 @@ async function fetchOdds() {
 
 async function fetchNHL() {
   try {
-    const res = await fetch("https://api-web.nhle.com/v1/playoffs/carousel/20252026/playoffSeries");
+    const res = await fetch("https://api-web.nhle.com/v1/playoff-bracket/2026");
     return res.json();
   } catch(e) { return null; }
 }
