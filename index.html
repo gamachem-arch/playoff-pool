@@ -282,6 +282,7 @@ async function render() {
   try {
     const [oddsMap, nhlRaw] = await Promise.all([fetchOdds(), fetchNHL()]);
     const parsed = parseSeries(nhlRaw) || fallbackParsed();
+    if (nhlRaw?.series) { const debug = nhlRaw.series.map(s => `${s.topSeedTeam?.abbrev} ${s.topSeedWins}-${s.bottomSeedWins} ${s.bottomSeedTeam?.abbrev}`).join(" | "); document.getElementById("subtitle").textContent = "RAW: " + debug; }
     const { r1w, r1e, r2, r3, r4 } = parsed;
 
     const hasR2 = r2.some(Boolean);
