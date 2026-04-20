@@ -230,7 +230,7 @@ function fallbackParsed() {
 function seriesCard(s, label, oddsMap, gamesData) {
   if (!s || s.topTeam === "TBD") {
     return `<div class="series">
-      <div class="series-header"><div class="series-round">${label}${getGameBadge(gamesData,t1,t2)}</div></div>
+      <div class="series-header"><div class="series-round">${label}</div></div>
       <div class="tbd-row"><span class="tbd-text">TBD</span></div>
       <div class="tbd-row" style="border-top:1px solid var(--border)"><span class="tbd-text">TBD</span></div>
     </div>`;
