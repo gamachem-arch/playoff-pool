@@ -57,6 +57,7 @@
   .pill-DAN { background: var(--DAN-bg); color: var(--DAN); }
   .pill-empty { min-width: 34px; flex-shrink: 0; display: inline-block; }
   .team-name { font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 700; letter-spacing: 0.5px; flex: 1; text-transform: uppercase; }
+  .tlogo { width: 20px; height: 20px; object-fit: contain; flex-shrink: 0; }
   .team-odds { font-size: 10px; color: var(--green); flex-shrink: 0; font-weight: 500; }
   .team-wins { font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 900; min-width: 18px; text-align: right; color: var(--muted); flex-shrink: 0; }
   .team-wins.leading { color: var(--green); }
@@ -225,16 +226,19 @@ function seriesCard(s, label, oddsMap) {
   const t1won = w1===4, t2won = w2===4;
   const o1 = oddsMap[t1] || "";
   const o2 = oddsMap[t2] || "";
+  const logoBase = 'https://assets.nhle.com/logos/nhl/svg/';
   return `<div class="series">
     <div class="series-header"><div class="series-round">${label}</div></div>
     <div class="team-row">
       ${pill(t1)}
+      <img class="tlogo" src="${logoBase}${t1}_light.svg" onerror="this.style.display='none'">
       <span class="team-name ${t2won?'eliminated':''} ${t1won?'champion':''}">${t1}</span>
       ${o1?`<span class="team-odds">${o1}</span>`:''}
       <span class="team-wins ${w1>w2?'leading':''}">${w1}</span>
     </div>
     <div class="team-row">
       ${pill(t2)}
+      <img class="tlogo" src="${logoBase}${t2}_light.svg" onerror="this.style.display='none'">
       <span class="team-name ${t1won?'eliminated':''} ${t2won?'champion':''}">${t2}</span>
       ${o2?`<span class="team-odds">${o2}</span>`:''}
       <span class="team-wins ${w2>w1?'leading':''}">${w2}</span>
