@@ -120,6 +120,7 @@
   <div class="legend-item"><div class="legend-dot" style="background:var(--DAN)"></div>DAN — Danica</div>
 </div>
 
+<div id="pie-wrap"></div>
 <div id="main"><div class="loading">Fetching live NHL data + MoneyPuck odds...</div></div>
 <div id="standings-wrap"></div>
 
@@ -261,6 +262,28 @@ function seriesCard(s, label, oddsMap, gamesData) {
 }
 
 
+
+function buildPieChart(totals) {
+  var colors = {"CAT":"#ec4899","MIC":"#10b981","MAR":"#f59e0b","DAN":"#a855f7"};
+  var grand = totals.reduce(function(a,p){return a+p.total;},0);
+  if (grand === 0) return "";
+  var cx=40, cy=40, r=34, start=0, gap=0.04;
+  var slices = "";
+  totals.forEach(function(p) {
+    var pct = p.total/grand;
+    var angle = pct*2*Math.PI;
+    var s2 = start+gap/2, a2 = angle-gap;
+    if (a2 < 0.01){start+=angle;return;}
+    var x1=cx+r*Math.sin(s2), y1=cy-r*Math.cos(s2);
+    var x2=cx+r*Math.sin(s2+a2), y2=cy-r*Math.cos(s2+a2);
+    var large=a2>Math.PI?1:0;
+    var col=colors[p.player]||"#6b7a99";
+    slices+='<path d="M'+cx+','+cy+' L'+x1.toFixed(1)+','+y1.toFixed(1)+' A'+r+','+r+' 0 '+large+',1 '+x2.toFixed(1)+','+y2.toFixed(1)+' Z" fill="'+col+'"/>';
+    start+=angle;
+  });
+  return '<svg width="52" height="52" viewBox="0 0 80 80">'+slices+'</svg>';
+}
+
 function buildStandings(oddsMap) {
   const totals = Object.entries(POOL).map(([player, teams]) => {
     let total = 0;
@@ -380,6 +403,16 @@ async function render() {
     }
 
     document.getElementById("main").innerHTML = html;
+    var pieTotals = Object.entries(POOL).map(function(player_teams) {
+      var player=player_teams[0], teams=player_teams[1];
+      var total=0;
+      for(var i=0;i<teams.length;i++) total+=parseFloat((oddsMap[teams[i]]||"0%").replace("%",""));
+      return {player:player, name:PLAYER_NAMES[player], total:total, teams:teams};
+    }).sort(function(a,b){return b.total-a.total;});
+    // Update legend with pie
+    var pieSvg = buildPieChart(pieTotals);
+    var legendEl = document.getElementById("pie-wrap");
+    if(legendEl) legendEl.innerHTML = '<div style="display:flex;justify-content:center;margin-bottom:8px">'+pieSvg+'</div>';
     document.getElementById("standings-wrap").innerHTML = buildStandings(oddsMap);
 
     const oddsLoaded = Object.keys(oddsMap).length > 0;
