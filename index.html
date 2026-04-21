@@ -54,7 +54,8 @@
   .one-col { max-width: 500px; margin: 0 auto; }
 
   .series { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
-  .series-header { padding: 5px 12px; background: var(--surface2); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .series-header { padding: 5px 12px; background: var(--surface2); border-bottom: 1px solid var(--border); }
+  .series-header-inner { display: flex; align-items: center; justify-content: space-between; width: 100%; }
   .series-round { font-family: 'Barlow Condensed', sans-serif; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
   .team-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; }
   .team-row + .team-row { border-top: 1px solid var(--border); }
@@ -241,7 +242,7 @@ function seriesCard(s, label, oddsMap, gamesData) {
   const o2 = oddsMap[t2] || "";
   const logoBase = 'https://assets.nhle.com/logos/nhl/svg/';
   return `<div class="series">
-    <div class="series-header"><div class="series-round">${label}${getGameBadge(gamesData,t1,t2)}</div></div>
+    <div class="series-header"><div class="series-header-inner"><div class="series-round">${label}</div>${getGameBadge(gamesData,t1,t2)}</div></div>
     <div class="team-row">
       ${pill(t1)}
       <img class="tlogo" src="${logoBase}${t1}_light.svg" onerror="this.style.display='none'">
@@ -309,7 +310,7 @@ function getGameBadge(gamesData, t1, t2) {
         var as = g.awayScore !== null ? g.awayScore : 0;
         var hs = g.homeScore !== null ? g.homeScore : 0;
         var per = g.period ? " P"+g.period : "";
-        return '<span class="game-badge live">🔴 ' + g.away + " " + as + " · " + g.home + " " + hs + per + '</span>';
+        return '<span class="game-badge live">' + g.away + " " + as + " · " + g.home + " " + hs + per + '</span>';
       } else if (state === "FINAL" || state === "OFF") {
         var as = g.awayScore !== null ? g.awayScore : 0;
         var hs = g.homeScore !== null ? g.homeScore : 0;
