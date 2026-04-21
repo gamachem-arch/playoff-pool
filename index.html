@@ -54,7 +54,7 @@
   .one-col { max-width: 500px; margin: 0 auto; }
 
   .series { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
-  .series-header { padding: 5px 12px; background: var(--surface2); border-bottom: 1px solid var(--border); }
+  .series-header { padding: 5px 12px; background: var(--surface2); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
   .series-round { font-family: 'Barlow Condensed', sans-serif; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
   .team-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; }
   .team-row + .team-row { border-top: 1px solid var(--border); }
@@ -72,7 +72,7 @@
   .team-name.eliminated { opacity: 0.3; text-decoration: line-through; }
   .team-name.champion { color: #fbbf24; }
   
-  .game-badge { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 600; color: var(--muted); letter-spacing: 0.5px; float: right; }
+  .game-badge { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 600; color: var(--muted); letter-spacing: 0.5px; }
   .game-badge.live { color: #f87171; }
   .game-badge.final { color: var(--green); }
 
@@ -258,6 +258,7 @@ function seriesCard(s, label, oddsMap, gamesData) {
     </div>
   </div>`;
 }
+
 
 function buildStandings(oddsMap) {
   const totals = Object.entries(POOL).map(([player, teams]) => {
