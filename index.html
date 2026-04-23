@@ -109,11 +109,21 @@
   .standing-teams { font-size: 10px; color: var(--muted); margin-top: 6px; line-height: 1.7; }
 
   .team-odds-list { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-  .team-odds-row { display: flex; align-items: center; gap: 6px; padding: 5px 8px; background: var(--surface2); border-radius: 8px; border: 1px solid var(--border); }
+  .team-odds-row { display: flex; flex-direction: column; background: var(--surface2); border-radius: 8px; border: 1px solid var(--border); cursor: pointer; overflow: hidden; }
+  .tor-main { display: flex; align-items: center; gap: 6px; padding: 5px 8px; }
   .team-rank { font-size: 9px; color: var(--muted); width: 14px; text-align: right; flex-shrink: 0; }
   .tlogo-sm { width: 16px; height: 16px; object-fit: contain; flex-shrink: 0; }
   .team-name-odds { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 700; flex: 1; }
   .team-cup-pct { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 700; color: var(--green); }
+  .team-detail { display: none; border-top: 1px solid var(--border); padding: 6px 8px 8px; }
+  .team-detail.open { display: block; }
+  .detail-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+  .detail-cell { display: flex; flex-direction: column; align-items: center; padding: 4px 2px; background: var(--surface); border-radius: 5px; }
+  .detail-label { font-size: 8px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 1px; }
+  .detail-val { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 700; color: var(--green); }
+  .series-odds-header { display: flex; align-items: center; gap: 4px; padding: 5px 10px; font-size: 9px; color: var(--muted); border-bottom: 1px solid var(--border); letter-spacing: 0.5px; text-transform: uppercase; }
+  .soh-team { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; color: var(--text); }
+  .soh-pct { color: var(--green); font-weight: 600; }
 
   .loading { text-align: center; padding: 60px 20px; color: var(--muted); }
   .error { text-align: center; padding: 40px; color: #f87171; font-size: 13px; background: var(--surface); border-radius: 12px; max-width: 500px; margin: 0 auto; }
@@ -190,14 +200,20 @@ async function fetchOdds() {
   try {
     const res = await fetch(ODDS_API + "?t=" + Date.now());
     const data = await res.json();
-    const oddsMap = {};
+    const oddsMap = {}, roundOdds = {};
     for (const [k, v] of Object.entries(data)) {
-      oddsMap[k.toUpperCase().trim()] = v;
+      const team = k.toUpperCase().trim();
+      if (typeof v === 'string') {
+        oddsMap[team] = v;
+      } else if (typeof v === 'object' && v !== null) {
+        if (v.cup) oddsMap[team] = v.cup;
+        roundOdds[team] = { r2: v.r2||'', r3: v.r3||'', r4: v.r4||'', cup: v.cup||'' };
+      }
     }
-    return oddsMap;
+    return { oddsMap, roundOdds };
   } catch(e) {
     console.warn("Odds fetch failed:", e);
-    return {};
+    return { oddsMap: {}, roundOdds: {} };
   }
 }
 
@@ -280,6 +296,10 @@ function toggleSeriesGames(id) {
   var el = document.getElementById('sg-' + id);
   if (el) el.classList.toggle('open');
 }
+function toggleTeamDetail(team) {
+  var el = document.getElementById('td-' + team);
+  if (el) el.classList.toggle('open');
+}
 function buildSeriesGames(t1, t2, gamesData) {
   if (!gamesData || !gamesData.length) return '';
   var games = gamesData.filter(function(g) {
@@ -310,7 +330,7 @@ function deltaBadge(d) {
   return `<span class="odds-delta ${cls}"><span class="delta-num">${Math.abs(d).toFixed(1)}</span>${arrow}</span>`;
 }
 
-function seriesCard(s, label, oddsMap, gamesData, deltaMap) {
+function seriesCard(s, label, oddsMap, gamesData, deltaMap, roundOdds, roundNum) {
   if (!s || s.topTeam === "TBD") {
     return `<div class="series">
       <div class="series-header"><div class="series-round">${label}</div></div>
@@ -326,6 +346,10 @@ function seriesCard(s, label, oddsMap, gamesData, deltaMap) {
   const d2 = deltaMap ? deltaMap[t2] : null;
   const logoBase = 'https://assets.nhle.com/logos/nhl/svg/';
   const sid = (t1+'-'+t2).toLowerCase();
+  const roundKey = {1:'r2',2:'r3',3:'r4',4:'cup'}[roundNum] || 'r2';
+  const sr1 = roundOdds?.[t1]?.[roundKey] || '';
+  const sr2 = roundOdds?.[t2]?.[roundKey] || '';
+  const seriesHeader = (sr1||sr2) ? `<div class="series-odds-header"><span class="soh-team">${t1}</span>&nbsp;<span class="soh-pct">${sr1}</span><span style="margin:0 4px;opacity:0.3">·</span><span class="soh-team">${t2}</span>&nbsp;<span class="soh-pct">${sr2}</span><span style="flex:1"></span>win series</div>` : '';
   return `<div class="series" onclick="toggleSeriesGames('${sid}')">
     <div class="series-header"><div class="series-header-inner"><div class="series-round">${label}</div>${getGameBadge(gamesData,t1,t2)}</div></div>
     <div class="team-row">
@@ -342,7 +366,7 @@ function seriesCard(s, label, oddsMap, gamesData, deltaMap) {
       <div class="odds-wrap">${deltaBadge(d2)}${o2?`<span class="team-odds">${o2}</span>`:''}</div>
       <span class="team-wins ${w2>w1?'leading':''}">${w2}</span>
     </div>
-    <div class="series-games" id="sg-${sid}">${buildSeriesGames(t1,t2,gamesData)}</div>
+    <div class="series-games" id="sg-${sid}">${seriesHeader}${buildSeriesGames(t1,t2,gamesData)}</div>
   </div>`;
 }
 
@@ -401,7 +425,7 @@ function toggleRound(id) {
   section.classList.toggle('is-collapsed');
 }
 
-function buildTeamOdds(oddsMap) {
+function buildTeamOdds(oddsMap, roundOdds) {
   if (!Object.keys(oddsMap).length) return '';
   const ALL_TEAMS = ["COL","EDM","TBL","LAK","BUF","MTL","PIT","ANA","MIN","OTT","PHI","UTA","CAR","VGK","DAL","BOS"];
   const ranked = ALL_TEAMS
@@ -413,14 +437,26 @@ function buildTeamOdds(oddsMap) {
   return `<div class="standings" style="margin-top:16px">
     <div class="standings-title">All teams — Stanley Cup odds</div>
     <div class="team-odds-list">
-      ${interleaved.map((t,i) => `
-        <div class="team-odds-row">
-          <span class="team-rank">${ranked.indexOf(t)+1}</span>
-          <img class="tlogo-sm" src="https://assets.nhle.com/logos/nhl/svg/${t.team}_light.svg" onerror="this.style.display='none'">
-          <span class="team-name-odds">${t.team}</span>
-          ${pill(t.team)}
-          <span class="team-cup-pct">${t.pct.toFixed(1)}%</span>
-        </div>`).join('')}
+      ${interleaved.map(t => {
+        const ro = roundOdds?.[t.team] || {};
+        return `<div class="team-odds-row" onclick="toggleTeamDetail('${t.team}')">
+          <div class="tor-main">
+            <span class="team-rank">${ranked.indexOf(t)+1}</span>
+            <img class="tlogo-sm" src="https://assets.nhle.com/logos/nhl/svg/${t.team}_light.svg" onerror="this.style.display='none'">
+            <span class="team-name-odds">${t.team}</span>
+            ${pill(t.team)}
+            <span class="team-cup-pct">${t.pct.toFixed(1)}%</span>
+          </div>
+          <div class="team-detail" id="td-${t.team}">
+            <div class="detail-grid">
+              <div class="detail-cell"><span class="detail-label">Win R1</span><span class="detail-val">${ro.r2||'—'}</span></div>
+              <div class="detail-cell"><span class="detail-label">Win R2</span><span class="detail-val">${ro.r3||'—'}</span></div>
+              <div class="detail-cell"><span class="detail-label">Conf Final</span><span class="detail-val">${ro.r4||'—'}</span></div>
+              <div class="detail-cell"><span class="detail-label">Win Cup</span><span class="detail-val">${ro.cup||t.pct.toFixed(1)+'%'}</span></div>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
     </div>
   </div>`;
 }
@@ -478,7 +514,7 @@ function makeRoundSection(id, title, bodyHtml, collapsed) {
 async function render() {
   document.getElementById("subtitle").textContent = "Refreshing...";
   try {
-    const [oddsMap, nhlRaw, gamesRaw] = await Promise.all([fetchOdds(), fetchNHL(),
+    const [{ oddsMap, roundOdds }, nhlRaw, gamesRaw] = await Promise.all([fetchOdds(), fetchNHL(),
       fetchAllGames()
     ]);
 
@@ -513,28 +549,28 @@ async function render() {
       <div class="conf-label">Eastern Conference</div>
     </div>`;
 
-    const sc = (s, lbl, g) => seriesCard(s, lbl, oddsMap, g, deltaMap);
+    const sc = (s, lbl, g, rNum) => seriesCard(s, lbl, oddsMap, g, deltaMap, roundOdds, rNum);
 
     let html = makeRoundSection('r1', 'Round 1',
       confLabels + `<div class="four-col">
-        ${r1w.map(s => sc(s,"Round 1",gamesRaw)).join("")}
-        ${r1e.map(s => sc(s,"Round 1",gamesRaw)).join("")}
+        ${r1w.map(s => sc(s,"Round 1",gamesRaw,1)).join("")}
+        ${r1e.map(s => sc(s,"Round 1",gamesRaw,1)).join("")}
       </div>`, r2HasTeams);
 
     html += makeRoundSection('r2', 'Round 2',
       confLabels + `<div class="four-col">
-        ${sc(r2[0],"West R2",gamesRaw)}${sc(r2[1],"West R2",gamesRaw)}
-        ${sc(r2[2],"East R2",gamesRaw)}${sc(r2[3],"East R2",gamesRaw)}
+        ${sc(r2[0],"West R2",gamesRaw,2)}${sc(r2[1],"West R2",gamesRaw,2)}
+        ${sc(r2[2],"East R2",gamesRaw,2)}${sc(r2[3],"East R2",gamesRaw,2)}
       </div>`, !r2HasTeams);
 
     html += makeRoundSection('r3', 'Conference Finals',
       `<div class="two-col">
-        ${sc(r3[0],"West Conference Final",gamesRaw)}
-        ${sc(r3[1],"East Conference Final",gamesRaw)}
+        ${sc(r3[0],"West Conference Final",gamesRaw,3)}
+        ${sc(r3[1],"East Conference Final",gamesRaw,3)}
       </div>`, !r3HasTeams);
 
     html += makeRoundSection('r4', 'Stanley Cup Final',
-      `<div class="one-col">${sc(r4,"Stanley Cup Final",gamesRaw)}</div>`,
+      `<div class="one-col">${sc(r4,"Stanley Cup Final",gamesRaw,4)}</div>`,
       !r4HasTeams);
 
     document.getElementById("main").innerHTML = html;
@@ -551,7 +587,7 @@ async function render() {
     }).join('');
     var legendEl = document.getElementById("legend-pie-wrap");
     if(legendEl) legendEl.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;gap:20px;margin-bottom:24px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;">'+legendItems+'</div>'+pieSvg+'</div>';
-    document.getElementById("standings-wrap").innerHTML = buildStandings(oddsMap) + buildTeamOdds(oddsMap);
+    document.getElementById("standings-wrap").innerHTML = buildStandings(oddsMap) + buildTeamOdds(oddsMap, roundOdds);
 
     const oddsLoaded = Object.keys(oddsMap).length > 0;
     document.getElementById("subtitle").textContent =
