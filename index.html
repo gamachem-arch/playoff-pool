@@ -349,7 +349,7 @@ function seriesCard(s, label, oddsMap, gamesData, deltaMap, roundOdds, roundNum)
   const roundKey = {1:'r2',2:'r3',3:'r4',4:'cup'}[roundNum] || 'r2';
   const sr1 = roundOdds?.[t1]?.[roundKey] || '';
   const sr2 = roundOdds?.[t2]?.[roundKey] || '';
-  const seriesHeader = (sr1||sr2) ? `<div class="series-odds-header"><span class="soh-team">${t1}</span>&nbsp;<span class="soh-pct">${sr1}</span><span style="margin:0 4px;opacity:0.3">·</span><span class="soh-team">${t2}</span>&nbsp;<span class="soh-pct">${sr2}</span><span style="flex:1"></span>win series</div>` : '';
+  const seriesHeader = (sr1||sr2) ? `<div class="series-odds-header"><span class="soh-team">${t1}</span>&nbsp;<span class="soh-pct">${sr1}</span><span style="margin:0 4px;opacity:0.3">·</span><span class="soh-team">${t2}</span>&nbsp;<span class="soh-pct">${sr2}</span><span style="flex:1"></span>win</div>` : '';
   return `<div class="series" onclick="toggleSeriesGames('${sid}')">
     <div class="series-header"><div class="series-header-inner"><div class="series-round">${label}</div>${getGameBadge(gamesData,t1,t2)}</div></div>
     <div class="team-row">
