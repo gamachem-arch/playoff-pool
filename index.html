@@ -345,27 +345,49 @@ function buildDualSparkline(histData, t1, t2, roundKey) {
     .filter(d => !isNaN(d.val));
   const pts1 = getPoints(t1), pts2 = getPoints(t2);
   if (pts1.length < 2 && pts2.length < 2) return '';
+  const map1 = Object.fromEntries(pts1.map(p => [p.date, p.val]));
+  const map2 = Object.fromEntries(pts2.map(p => [p.date, p.val]));
   const allDates = [...new Set([...pts1, ...pts2].map(p => p.date))].sort();
   if (allDates.length < 2) return '';
+
+  // Filter to dates where either team shifted >= 1pp (always keep first & last)
+  const THRESH = 1.0;
+  const kept = [allDates[0]];
+  let p1 = map1[allDates[0]] ?? null, p2 = map2[allDates[0]] ?? null;
+  for (let i = 1; i < allDates.length - 1; i++) {
+    const d = allDates[i];
+    const v1 = map1[d] ?? p1, v2 = map2[d] ?? p2;
+    const chg = Math.max(p1 !== null ? Math.abs(v1 - p1) : 0, p2 !== null ? Math.abs(v2 - p2) : 0);
+    if (chg >= THRESH) {
+      kept.push(d);
+      if (map1[d] !== undefined) p1 = map1[d];
+      if (map2[d] !== undefined) p2 = map2[d];
+    }
+  }
+  kept.push(allDates[allDates.length - 1]);
+  const useDates = [...new Set(kept)];
+
   const W = 200, H = 36, padX = 8, padY = 6;
-  const allVals = [...pts1, ...pts2].map(p => p.val);
+  const allVals = useDates.flatMap(d => [map1[d], map2[d]].filter(v => v !== undefined));
   const min = Math.min(...allVals), max = Math.max(...allVals);
   const range = max - min || 1;
-  const toCoords = pts => pts.map(p => {
-    const di = allDates.indexOf(p.date);
-    const x = padX + (di / (allDates.length - 1)) * (W - padX * 2);
-    const y = padY + (H - padY * 2) * (1 - (p.val - min) / range);
-    return { x, y, val: p.val };
-  });
-  const c1 = toCoords(pts1), c2 = toCoords(pts2);
+  const toCoords = map => useDates
+    .filter(d => map[d] !== undefined)
+    .map(d => {
+      const di = useDates.indexOf(d);
+      const x = padX + (di / (useDates.length - 1)) * (W - padX * 2);
+      const y = padY + (H - padY * 2) * (1 - (map[d] - min) / range);
+      return { x, y, val: map[d] };
+    });
+  const c1 = toCoords(map1), c2 = toCoords(map2);
   const polyStr = pts => pts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
   const col1 = '#60a5fa', col2 = '#fb923c';
   const last1 = c1.length ? c1[c1.length-1] : null;
   const last2 = c2.length ? c2[c2.length-1] : null;
-  const dateLabels = allDates.map((d, i) => {
+  const dateLabels = useDates.map((d, i) => {
     const md = d.substring(5).replace('-', '/');
-    const x = padX + (i / (allDates.length - 1)) * (W - padX * 2);
-    const anchor = i===0 ? 'start' : i===allDates.length-1 ? 'end' : 'middle';
+    const x = padX + (i / (useDates.length - 1)) * (W - padX * 2);
+    const anchor = i===0 ? 'start' : i===useDates.length-1 ? 'end' : 'middle';
     return `<text x="${x.toFixed(1)}" y="${H+9}" font-size="6.5" fill="#6b7280" text-anchor="${anchor}" font-family="monospace">${md}</text>`;
   }).join('');
   return `<div style="padding:6px 8px 4px;border-bottom:1px solid var(--border)">
@@ -481,11 +503,19 @@ function toggleRound(id) {
 }
 
 function buildSparkline(histData, team) {
-  const points = (histData||[])
+  const raw = (histData||[])
     .filter(d => (d.team||'').toUpperCase() === team.toUpperCase() && d.cup != null && d.cup !== '')
     .sort((a,b) => (a.date||'').localeCompare(b.date||''))
     .map(d => ({ date: d.date, val: parseFloat(d.cup) }))
     .filter(d => !isNaN(d.val));
+  if (raw.length < 2) return '';
+  // Filter to significant changes (>= 0.8pp), always keep first & last
+  const THRESH = 0.8;
+  const points = [raw[0]];
+  for (let i = 1; i < raw.length - 1; i++) {
+    if (Math.abs(raw[i].val - points[points.length-1].val) >= THRESH) points.push(raw[i]);
+  }
+  points.push(raw[raw.length-1]);
   if (points.length < 2) return '';
   const W = 200, H = 38, padX = 8, padY = 8;
   const vals = points.map(p => p.val);
