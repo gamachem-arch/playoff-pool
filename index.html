@@ -82,7 +82,7 @@
   .team-name { font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 700; letter-spacing: 0.5px; flex: 1; text-transform: uppercase; }
   .tlogo { width: 20px; height: 20px; object-fit: contain; flex-shrink: 0; }
   .team-odds { font-size: 10px; color: var(--green); flex-shrink: 0; font-weight: 500; }
-  .odds-delta { font-size: 9px; font-weight: 700; flex-shrink: 0; }
+  .odds-delta { font-size: 8px; font-weight: 700; flex-shrink: 0; line-height: 1; align-self: center; }
   .odds-delta.up { color: #4ade80; }
   .odds-delta.down { color: #f87171; }
   .team-wins { font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 900; min-width: 18px; text-align: right; color: var(--muted); flex-shrink: 0; }
@@ -121,6 +121,7 @@
     .four-col { grid-template-columns: 1fr 1fr; }
     .standings-grid { grid-template-columns: repeat(2, 1fr); }
     .team-name { font-size: 14px; }
+    .delta-num { display: none; }
     .standing-pct { font-size: 28px; }
   }
   @media (max-width: 400px) {
@@ -301,7 +302,7 @@ function deltaBadge(d) {
   if (d === null || d === undefined || d === 0) return '';
   var cls = d > 0 ? 'up' : 'down';
   var arrow = d > 0 ? '▲' : '▼';
-  return `<span class="odds-delta ${cls}">${arrow}${Math.abs(d).toFixed(1)}</span>`;
+  return `<span class="odds-delta ${cls}"><span class="delta-num">${Math.abs(d).toFixed(1)}</span>${arrow}</span>`;
 }
 
 function seriesCard(s, label, oddsMap, gamesData, deltaMap) {
@@ -326,14 +327,14 @@ function seriesCard(s, label, oddsMap, gamesData, deltaMap) {
       ${pill(t1)}
       <img class="tlogo" src="${logoBase}${t1}_light.svg" onerror="this.style.display='none'">
       <span class="team-name ${t2won?'eliminated':''} ${t1won?'champion':''}">${t1}</span>
-      ${o1?`<span class="team-odds">${o1}</span>${deltaBadge(d1)}`:''}
+      ${deltaBadge(d1)}${o1?`<span class="team-odds">${o1}</span>`:''}
       <span class="team-wins ${w1>w2?'leading':''}">${w1}</span>
     </div>
     <div class="team-row">
       ${pill(t2)}
       <img class="tlogo" src="${logoBase}${t2}_light.svg" onerror="this.style.display='none'">
       <span class="team-name ${t1won?'eliminated':''} ${t2won?'champion':''}">${t2}</span>
-      ${o2?`<span class="team-odds">${o2}</span>${deltaBadge(d2)}`:''}
+      ${deltaBadge(d2)}${o2?`<span class="team-odds">${o2}</span>`:''}
       <span class="team-wins ${w2>w1?'leading':''}">${w2}</span>
     </div>
     <div class="series-games" id="sg-${sid}">${buildSeriesGames(t1,t2,gamesData)}</div>
