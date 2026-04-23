@@ -337,7 +337,54 @@ function deltaBadge(d) {
   return `<span class="odds-delta ${cls}"><span class="delta-num">${Math.abs(d).toFixed(1)}</span>${arrow}</span>`;
 }
 
-function seriesCard(s, label, oddsMap, gamesData, deltaMap, roundOdds, roundNum) {
+function buildDualSparkline(histData, t1, t2, roundKey) {
+  const getPoints = team => (histData||[])
+    .filter(d => (d.team||'').toUpperCase() === team.toUpperCase() && d[roundKey] != null && d[roundKey] !== '')
+    .sort((a,b) => (a.date||'').localeCompare(b.date||''))
+    .map(d => ({ date: d.date, val: parseFloat(d[roundKey]) }))
+    .filter(d => !isNaN(d.val));
+  const pts1 = getPoints(t1), pts2 = getPoints(t2);
+  if (pts1.length < 2 && pts2.length < 2) return '';
+  const allDates = [...new Set([...pts1, ...pts2].map(p => p.date))].sort();
+  if (allDates.length < 2) return '';
+  const W = 200, H = 36, padX = 8, padY = 6;
+  const allVals = [...pts1, ...pts2].map(p => p.val);
+  const min = Math.min(...allVals), max = Math.max(...allVals);
+  const range = max - min || 1;
+  const toCoords = pts => pts.map(p => {
+    const di = allDates.indexOf(p.date);
+    const x = padX + (di / (allDates.length - 1)) * (W - padX * 2);
+    const y = padY + (H - padY * 2) * (1 - (p.val - min) / range);
+    return { x, y, val: p.val };
+  });
+  const c1 = toCoords(pts1), c2 = toCoords(pts2);
+  const polyStr = pts => pts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const col1 = '#60a5fa', col2 = '#fb923c';
+  const last1 = c1.length ? c1[c1.length-1] : null;
+  const last2 = c2.length ? c2[c2.length-1] : null;
+  const dateLabels = allDates.map((d, i) => {
+    const md = d.substring(5).replace('-', '/');
+    const x = padX + (i / (allDates.length - 1)) * (W - padX * 2);
+    const anchor = i===0 ? 'start' : i===allDates.length-1 ? 'end' : 'middle';
+    return `<text x="${x.toFixed(1)}" y="${H+9}" font-size="6.5" fill="#6b7280" text-anchor="${anchor}" font-family="monospace">${md}</text>`;
+  }).join('');
+  return `<div style="padding:6px 8px 4px;border-bottom:1px solid var(--border)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">
+      <span style="font-size:9px;font-weight:700;color:${col1};font-family:'Barlow Condensed',sans-serif;letter-spacing:0.5px">${t1}${last1 ? ` <span style="opacity:0.7">${last1.val.toFixed(1)}%</span>` : ''}</span>
+      <span style="font-size:7px;color:var(--muted);letter-spacing:0.8px;text-transform:uppercase;opacity:0.5">win series</span>
+      <span style="font-size:9px;font-weight:700;color:${col2};font-family:'Barlow Condensed',sans-serif;letter-spacing:0.5px">${last2 ? `<span style="opacity:0.7">${last2.val.toFixed(1)}%</span> ` : ''}${t2}</span>
+    </div>
+    <svg width="100%" viewBox="0 0 ${W} ${H+14}" preserveAspectRatio="none" style="display:block;height:44px">
+      ${c1.length>=2 ? `<polyline points="${polyStr(c1)}" fill="none" stroke="${col1}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>` : ''}
+      ${c2.length>=2 ? `<polyline points="${polyStr(c2)}" fill="none" stroke="${col2}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>` : ''}
+      ${c1.map((p,i) => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${i===c1.length-1?2.5:1.8}" fill="${col1}"/>`).join('')}
+      ${c2.map((p,i) => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${i===c2.length-1?2.5:1.8}" fill="${col2}"/>`).join('')}
+      ${dateLabels}
+    </svg>
+  </div>`;
+}
+
+function seriesCard(s, label, oddsMap, gamesData, deltaMap, roundOdds, roundNum, histData) {
   if (!s || s.topTeam === "TBD") {
     return `<div class="series">
       <div class="series-header"><div class="series-round">${label}</div></div>
@@ -356,7 +403,8 @@ function seriesCard(s, label, oddsMap, gamesData, deltaMap, roundOdds, roundNum)
   const roundKey = {1:'r2',2:'r3',3:'r4',4:'cup'}[roundNum] || 'r2';
   const sr1 = roundOdds?.[t1]?.[roundKey] || '';
   const sr2 = roundOdds?.[t2]?.[roundKey] || '';
-  const seriesHeader = (sr1||sr2) ? `<div class="series-odds-header"><span class="soh-team">${t1}</span>&nbsp;<span class="soh-pct">${sr1}</span><span style="margin:0 4px;opacity:0.3">·</span><span class="soh-team">${t2}</span>&nbsp;<span class="soh-pct">${sr2}</span><span style="flex:1"></span>win</div>` : '';
+  const dualSpark = buildDualSparkline(histData, t1, t2, roundKey);
+  const seriesHeader = (!dualSpark && (sr1||sr2)) ? `<div class="series-odds-header"><span class="soh-team">${t1}</span>&nbsp;<span class="soh-pct">${sr1}</span><span style="margin:0 4px;opacity:0.3">·</span><span class="soh-team">${t2}</span>&nbsp;<span class="soh-pct">${sr2}</span><span style="flex:1"></span>win</div>` : '';
   return `<div class="series" onclick="toggleSeriesGames('${sid}')">
     <div class="series-header"><div class="series-header-inner"><div class="series-round">${label}</div>${getGameBadge(gamesData,t1,t2)}</div></div>
     <div class="team-row">
@@ -373,7 +421,7 @@ function seriesCard(s, label, oddsMap, gamesData, deltaMap, roundOdds, roundNum)
       <div class="odds-wrap">${deltaBadge(d2)}${o2?`<span class="team-odds">${o2}</span>`:''}</div>
       <span class="team-wins ${w2>w1?'leading':''}">${w2}</span>
     </div>
-    <div class="series-games" id="sg-${sid}">${seriesHeader}${buildSeriesGames(t1,t2,gamesData)}</div>
+    <div class="series-games" id="sg-${sid}">${dualSpark}${seriesHeader}${buildSeriesGames(t1,t2,gamesData)}</div>
   </div>`;
 }
 
@@ -596,7 +644,7 @@ async function render() {
       <div class="conf-label">Eastern Conference</div>
     </div>`;
 
-    const sc = (s, lbl, g, rNum) => seriesCard(s, lbl, oddsMap, g, deltaMap, roundOdds, rNum);
+    const sc = (s, lbl, g, rNum) => seriesCard(s, lbl, oddsMap, g, deltaMap, roundOdds, rNum, historyData);
 
     let html = makeRoundSection('r1', 'Round 1',
       confLabels + `<div class="four-col">
