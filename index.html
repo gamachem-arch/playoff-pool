@@ -196,6 +196,13 @@ function pill(team) {
   return `<span class="pool-pill pill-${p}">${p}</span>`;
 }
 
+async function fetchHistory() {
+  try {
+    const res = await fetch(ODDS_API + "?action=history&t=" + Date.now());
+    return await res.json();
+  } catch(e) { return []; }
+}
+
 async function fetchOdds() {
   try {
     const res = await fetch(ODDS_API + "?t=" + Date.now());
@@ -425,7 +432,46 @@ function toggleRound(id) {
   section.classList.toggle('is-collapsed');
 }
 
-function buildTeamOdds(oddsMap, roundOdds) {
+function buildSparkline(histData, team) {
+  const points = (histData||[])
+    .filter(d => (d.team||'').toUpperCase() === team.toUpperCase() && d.cup != null && d.cup !== '')
+    .sort((a,b) => (a.date||'').localeCompare(b.date||''))
+    .map(d => ({ date: d.date, val: parseFloat(d.cup) }))
+    .filter(d => !isNaN(d.val));
+  if (points.length < 2) return '';
+  const W = 200, H = 38, padX = 8, padY = 8;
+  const vals = points.map(p => p.val);
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const range = max - min || 0.5;
+  const xs = points.map((_, i) => padX + (i / (points.length - 1)) * (W - padX * 2));
+  const ys = vals.map(v => padY + (H - padY * 2) * (1 - (v - min) / range));
+  const trend = vals[vals.length-1] - vals[0];
+  const color = trend > 0.2 ? '#4ade80' : trend < -0.2 ? '#f87171' : '#9ca3af';
+  const poly = xs.map((x,i) => `${x.toFixed(1)},${ys[i].toFixed(1)}`).join(' ');
+  const area = `M${xs[0].toFixed(1)},${H} ` + xs.map((x,i)=>`L${x.toFixed(1)},${ys[i].toFixed(1)}`).join(' ') + ` L${xs[xs.length-1].toFixed(1)},${H} Z`;
+  const dots = points.map((p,i) => `<circle cx="${xs[i].toFixed(1)}" cy="${ys[i].toFixed(1)}" r="${i===points.length-1?2.5:1.8}" fill="${color}"/>`).join('');
+  const dateLabels = points.map((p,i) => {
+    const md = (p.date||'').substring(5).replace('-','/');
+    const anchor = i===0?'start':i===points.length-1?'end':'middle';
+    return `<text x="${xs[i].toFixed(1)}" y="${H+9}" font-size="6.5" fill="#6b7280" text-anchor="${anchor}" font-family="monospace">${md}</text>`;
+  }).join('');
+  const valLabels = points.map((p,i) => {
+    if (i!==0 && i!==points.length-1) return '';
+    const anchor = i===0?'start':'end';
+    return `<text x="${xs[i].toFixed(1)}" y="${(ys[i]-4).toFixed(1)}" font-size="6.5" fill="${color}" text-anchor="${anchor}" font-weight="700" font-family="sans-serif">${p.val.toFixed(1)}%</text>`;
+  }).join('');
+  return `<svg width="100%" viewBox="0 0 ${W} ${H+14}" preserveAspectRatio="none" style="display:block;height:52px;margin-bottom:4px">
+    <defs><linearGradient id="sg-${team}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${color}" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+    </linearGradient></defs>
+    <path d="${area}" fill="url(#sg-${team})"/>
+    <polyline points="${poly}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    ${dots}${valLabels}${dateLabels}
+  </svg>`;
+}
+
+function buildTeamOdds(oddsMap, roundOdds, histData) {
   if (!Object.keys(oddsMap).length) return '';
   const ALL_TEAMS = ["COL","EDM","TBL","LAK","BUF","MTL","PIT","ANA","MIN","OTT","PHI","UTA","CAR","VGK","DAL","BOS"];
   const ranked = ALL_TEAMS
@@ -448,6 +494,7 @@ function buildTeamOdds(oddsMap, roundOdds) {
             <span class="team-cup-pct">${t.pct.toFixed(1)}%</span>
           </div>
           <div class="team-detail" id="td-${t.team}">
+            ${buildSparkline(histData, t.team)}
             <div class="detail-grid">
               <div class="detail-cell"><span class="detail-label">Win R1</span><span class="detail-val">${ro.r2||'—'}</span></div>
               <div class="detail-cell"><span class="detail-label">Win R2</span><span class="detail-val">${ro.r3||'—'}</span></div>
@@ -514,8 +561,8 @@ function makeRoundSection(id, title, bodyHtml, collapsed) {
 async function render() {
   document.getElementById("subtitle").textContent = "Refreshing...";
   try {
-    const [{ oddsMap, roundOdds }, nhlRaw, gamesRaw] = await Promise.all([fetchOdds(), fetchNHL(),
-      fetchAllGames()
+    const [{ oddsMap, roundOdds }, nhlRaw, gamesRaw, historyData] = await Promise.all([
+      fetchOdds(), fetchNHL(), fetchAllGames(), fetchHistory()
     ]);
 
     // Odds delta — rotate daily: curr→prev at start of new day
@@ -587,7 +634,7 @@ async function render() {
     }).join('');
     var legendEl = document.getElementById("legend-pie-wrap");
     if(legendEl) legendEl.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;gap:20px;margin-bottom:24px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;">'+legendItems+'</div>'+pieSvg+'</div>';
-    document.getElementById("standings-wrap").innerHTML = buildStandings(oddsMap) + buildTeamOdds(oddsMap, roundOdds);
+    document.getElementById("standings-wrap").innerHTML = buildStandings(oddsMap) + buildTeamOdds(oddsMap, roundOdds, historyData);
 
     const oddsLoaded = Object.keys(oddsMap).length > 0;
     document.getElementById("subtitle").textContent =
