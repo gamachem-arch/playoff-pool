@@ -68,6 +68,10 @@
   .one-col { max-width: 500px; margin: 0 auto; }
 
   .series { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .series.live-series { border-color: #f87171; box-shadow: 0 0 0 1px #f8717133; }
+  @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.7)} }
+  .live-dot { display:inline-block;width:6px;height:6px;border-radius:50%;background:#f87171;margin-right:4px;animation:pulse-dot 1.2s ease-in-out infinite;vertical-align:middle;flex-shrink:0; }
+  .team-odds-row.my-team { border-left: 3px solid; background: rgba(255,255,255,0.03); }
   .series-header { padding: 5px 12px; background: var(--surface2); border-bottom: 1px solid var(--border); }
   .series-header-inner { display: flex; align-items: center; justify-content: space-between; width: 100%; }
   .series-round { font-family: 'Barlow Condensed', sans-serif; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
@@ -200,7 +204,7 @@ function _rebuildPoolUI() {
   if (!st.pieTotals) return;
   var legendEl = document.getElementById("legend-pie-wrap");
   if (legendEl) legendEl.innerHTML = _buildLegendPieHtml(st.pieTotals, st.pieSvg);
-  document.getElementById("standings-wrap").innerHTML = buildStandings(st.oddsMap) + buildTeamOdds(st.oddsMap, st.roundOdds, st.historyData);
+  document.getElementById("standings-wrap").innerHTML = buildStandings(st.oddsMap, st.historyData) + buildTeamOdds(st.oddsMap, st.roundOdds, st.historyData);
 }
 function _buildLegendPieHtml(pieTotals, pieSvg) {
   var me = getMyPlayer();
@@ -469,8 +473,10 @@ function seriesCard(s, label, oddsMap, gamesData, deltaMap, roundOdds, roundNum,
   const sr2 = roundOdds?.[t2]?.[roundKey] || '';
   const dualSpark = buildDualSparkline(histData, t1, t2, roundKey);
   const seriesHeader = (!dualSpark && (sr1||sr2)) ? `<div class="series-odds-header"><span class="soh-team">${t1}</span>&nbsp;<span class="soh-pct">${sr1}</span><span style="margin:0 4px;opacity:0.3">·</span><span class="soh-team">${t2}</span>&nbsp;<span class="soh-pct">${sr2}</span><span style="flex:1"></span>win</div>` : '';
-  return `<div class="series" onclick="toggleSeriesGames('${sid}')">
-    <div class="series-header"><div class="series-header-inner"><div class="series-round">${label}</div>${getGameBadge(gamesData,t1,t2)}</div></div>
+  const isLive = isSeriesLive(gamesData, t1, t2);
+  const liveDot = isLive ? '<span class="live-dot"></span>' : '';
+  return `<div class="series${isLive?' live-series':''}" onclick="toggleSeriesGames('${sid}')">
+    <div class="series-header"><div class="series-header-inner"><div class="series-round">${liveDot}${label}</div>${getGameBadge(gamesData,t1,t2)}</div></div>
     <div class="team-row">
       ${pill(t1)}
       <img class="tlogo" src="${logoBase}${t1}_light.svg" onerror="this.style.display='none'">
@@ -512,7 +518,40 @@ function buildPieChart(totals) {
   return '<svg width="44" height="44" viewBox="0 0 80 80" style="flex-shrink:0">'+slices+'</svg>';
 }
 
-function buildStandings(oddsMap) {
+function buildPlayerSparkline(histData, teams, colorVar) {
+  if (!histData || histData.length < 2) return '';
+  const dates = [...new Set(histData.map(d => d.date).filter(Boolean))].sort();
+  if (dates.length < 2) return '';
+  const points = dates.map(date => {
+    const val = teams.reduce((sum, team) => {
+      const e = histData.find(d => d.date === date && (d.team||'').toUpperCase() === team.toUpperCase());
+      return sum + (e ? parseFloat(e.cup)||0 : 0);
+    }, 0);
+    return val;
+  });
+  const min = Math.min(...points), max = Math.max(...points);
+  const range = max - min || 1;
+  const W = 160, H = 28, padX = 4, padY = 4;
+  const xs = points.map((_, i) => padX + (i / (points.length - 1)) * (W - padX * 2));
+  const ys = points.map(v => padY + (H - padY * 2) * (1 - (v - min) / range));
+  const poly = xs.map((x,i) => `${x.toFixed(1)},${ys[i].toFixed(1)}`).join(' ');
+  const area = `M${xs[0].toFixed(1)},${H} ` + xs.map((x,i) => `L${x.toFixed(1)},${ys[i].toFixed(1)}`).join(' ') + ` L${xs[xs.length-1].toFixed(1)},${H} Z`;
+  const trend = points[points.length-1] - points[0];
+  const stroke = trend > 0.5 ? '#4ade80' : trend < -0.5 ? '#f87171' : '#9ca3af';
+  const gradId = 'psg-' + colorVar;
+  const dots = xs.map((x,i) => `<circle cx="${x.toFixed(1)}" cy="${ys[i].toFixed(1)}" r="${i===points.length-1?2.5:1.5}" fill="${stroke}"/>`).join('');
+  return `<svg width="100%" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="display:block;height:32px;margin-top:6px">
+    <defs><linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${stroke}" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="${stroke}" stop-opacity="0"/>
+    </linearGradient></defs>
+    <path d="${area}" fill="url(#${gradId})"/>
+    <polyline points="${poly}" fill="none" stroke="${stroke}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    ${dots}
+  </svg>`;
+}
+
+function buildStandings(oddsMap, histData) {
   const me = getMyPlayer();
   const totals = Object.entries(POOL).map(([player, teams]) => {
     let total = 0;
@@ -532,6 +571,7 @@ function buildStandings(oddsMap) {
           <span class="pool-pill pill-${p.player}">${p.player}</span>
           <div class="standing-name">${p.name}</div>
           <div class="standing-pct" style="color:var(--${p.player})">${p.total.toFixed(1)}%</div>
+          ${buildPlayerSparkline(histData, p.teams, p.player)}
           <div class="standing-teams">${p.teams.join(" · ")}</div>
         </div>`).join("")}
     </div>
@@ -596,6 +636,8 @@ function buildSparkline(histData, team) {
 
 function buildTeamOdds(oddsMap, roundOdds, histData) {
   if (!Object.keys(oddsMap).length) return '';
+  const me = getMyPlayer();
+  const myTeams = me && POOL[me] ? POOL[me] : [];
   const ALL_TEAMS = ["COL","EDM","TBL","LAK","BUF","MTL","PIT","ANA","MIN","OTT","PHI","UTA","CAR","VGK","DAL","BOS"];
   const ranked = ALL_TEAMS
     .map(t => ({ team: t, pct: parseFloat((oddsMap[t]||"0%").replace("%","")) }))
@@ -608,7 +650,9 @@ function buildTeamOdds(oddsMap, roundOdds, histData) {
     <div class="team-odds-list">
       ${interleaved.map(t => {
         const ro = roundOdds?.[t.team] || {};
-        return `<div class="team-odds-row" onclick="toggleTeamDetail('${t.team}')">
+        const isMine = myTeams.indexOf(t.team) >= 0;
+        const myStyle = isMine ? `border-left-color:var(--${me});` : '';
+        return `<div class="team-odds-row${isMine?' my-team':''}" style="${myStyle}" onclick="toggleTeamDetail('${t.team}')">
           <div class="tor-main">
             <span class="team-rank">${ranked.indexOf(t)+1}</span>
             <img class="tlogo-sm" src="https://assets.nhle.com/logos/nhl/svg/${t.team}_light.svg" onerror="this.style.display='none'">
@@ -637,6 +681,14 @@ function formatGameTime(utcStr) {
   var ampm = h >= 12 ? "PM" : "AM";
   h = h % 12 || 12;
   return h + (m ? ":" + String(m).padStart(2,"0") : "") + " " + ampm;
+}
+
+function isSeriesLive(gamesData, t1, t2) {
+  if (!gamesData || !gamesData.length) return false;
+  return gamesData.some(function(g) {
+    return [g.away,g.home].indexOf(t1)>=0 && [g.away,g.home].indexOf(t2)>=0
+      && (g.state==='LIVE'||g.state==='CRIT');
+  });
 }
 
 function getGameBadge(gamesData, t1, t2) {
@@ -762,7 +814,7 @@ async function render() {
     _poolState = { pieTotals, pieSvg, oddsMap, roundOdds, historyData };
     var legendEl = document.getElementById("legend-pie-wrap");
     if(legendEl) legendEl.innerHTML = _buildLegendPieHtml(pieTotals, pieSvg);
-    document.getElementById("standings-wrap").innerHTML = buildStandings(oddsMap) + buildTeamOdds(oddsMap, roundOdds, historyData);
+    document.getElementById("standings-wrap").innerHTML = buildStandings(oddsMap, historyData) + buildTeamOdds(oddsMap, roundOdds, historyData);
 
     const oddsLoaded = Object.keys(oddsMap).length > 0;
     document.getElementById("subtitle").textContent =
