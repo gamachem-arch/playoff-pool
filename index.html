@@ -383,7 +383,7 @@ function deltaBadge(d) {
   return `<span class="odds-delta ${cls}"><span class="delta-num">${Math.abs(d).toFixed(1)}</span>${arrow}</span>`;
 }
 
-function buildDualSparkline(histData, t1, t2, roundKey) {
+function buildDualSparkline(histData, t1, t2, roundKey, liveVal1, liveVal2) {
   const getPoints = team => (histData||[])
     .filter(d => (d.team||'').toUpperCase() === team.toUpperCase() && d[roundKey] != null && d[roundKey] !== '')
     .sort((a,b) => (a.date||'').localeCompare(b.date||''))
@@ -393,7 +393,11 @@ function buildDualSparkline(histData, t1, t2, roundKey) {
   if (pts1.length < 2 && pts2.length < 2) return '';
   const map1 = Object.fromEntries(pts1.map(p => [p.date, p.val]));
   const map2 = Object.fromEntries(pts2.map(p => [p.date, p.val]));
-  const allDates = [...new Set([...pts1, ...pts2].map(p => p.date))].sort();
+  // Inject today's live values as the final point
+  const today = new Date().toISOString().substring(0,10);
+  if (liveVal1 != null) map1[today] = liveVal1;
+  if (liveVal2 != null) map2[today] = liveVal2;
+  const allDates = [...new Set([...Object.keys(map1), ...Object.keys(map2)])].sort();
   if (allDates.length < 2) return '';
 
   // Filter to dates where either team shifted >= 1pp (always keep first & last)
@@ -471,7 +475,9 @@ function seriesCard(s, label, oddsMap, gamesData, deltaMap, roundOdds, roundNum,
   const roundKey = {1:'r2',2:'r3',3:'r4',4:'cup'}[roundNum] || 'r2';
   const sr1 = roundOdds?.[t1]?.[roundKey] || '';
   const sr2 = roundOdds?.[t2]?.[roundKey] || '';
-  const dualSpark = buildDualSparkline(histData, t1, t2, roundKey);
+  const lv1 = roundOdds?.[t1]?.[roundKey] ? parseFloat((roundOdds[t1][roundKey]||'0%').replace('%','')) : null;
+  const lv2 = roundOdds?.[t2]?.[roundKey] ? parseFloat((roundOdds[t2][roundKey]||'0%').replace('%','')) : null;
+  const dualSpark = buildDualSparkline(histData, t1, t2, roundKey, lv1, lv2);
   const seriesHeader = (!dualSpark && (sr1||sr2)) ? `<div class="series-odds-header"><span class="soh-team">${t1}</span>&nbsp;<span class="soh-pct">${sr1}</span><span style="margin:0 4px;opacity:0.3">·</span><span class="soh-team">${t2}</span>&nbsp;<span class="soh-pct">${sr2}</span><span style="flex:1"></span>win</div>` : '';
   const isLive = isSeriesLive(gamesData, t1, t2);
   const liveDot = isLive ? '<span class="live-dot"></span>' : '';
@@ -587,12 +593,18 @@ function toggleRound(id) {
   section.classList.toggle('is-collapsed');
 }
 
-function buildSparkline(histData, team) {
+function buildSparkline(histData, team, liveVal) {
   const raw = (histData||[])
     .filter(d => (d.team||'').toUpperCase() === team.toUpperCase() && d.cup != null && d.cup !== '')
     .sort((a,b) => (a.date||'').localeCompare(b.date||''))
     .map(d => ({ date: d.date, val: parseFloat(d.cup) }))
     .filter(d => !isNaN(d.val));
+  // Inject today's live cup value as the final point
+  if (liveVal != null) {
+    const today = new Date().toISOString().substring(0,10);
+    const idx = raw.findIndex(d => d.date === today);
+    if (idx >= 0) raw[idx].val = liveVal; else raw.push({ date: today, val: liveVal });
+  }
   if (raw.length < 2) return '';
   // Filter to significant changes (>= 0.8pp), always keep first & last
   const THRESH = 0.8;
@@ -661,7 +673,7 @@ function buildTeamOdds(oddsMap, roundOdds, histData) {
             <span class="team-cup-pct">${t.pct.toFixed(1)}%</span>
           </div>
           <div class="team-detail" id="td-${t.team}">
-            ${buildSparkline(histData, t.team)}
+            ${buildSparkline(histData, t.team, t.pct)}
             <div class="detail-grid">
               <div class="detail-cell"><span class="detail-label">Win R1</span><span class="detail-val">${ro.r2||'—'}</span></div>
               <div class="detail-cell"><span class="detail-label">Win R2</span><span class="detail-val">${ro.r3||'—'}</span></div>
