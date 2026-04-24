@@ -689,21 +689,28 @@ async function render() {
       fetchOdds(), fetchNHL(), fetchAllGames(), fetchHistory()
     ]);
 
-    // Odds delta — rotate daily: curr→prev at start of new day
-    var today = new Date().toISOString().substring(0,10);
+    // Odds delta — compare live odds to most recent historical snapshot from a previous day
     var deltaMap = {};
     try {
-      if (localStorage.getItem('poolOddsSnapDate') !== today && Object.keys(oddsMap).length) {
-        var curr = localStorage.getItem('poolOddsSnapCurr');
-        if (curr) localStorage.setItem('poolOddsSnapPrev', curr);
-        localStorage.setItem('poolOddsSnapDate', today);
-      }
-      if (Object.keys(oddsMap).length) localStorage.setItem('poolOddsSnapCurr', JSON.stringify(oddsMap));
-      var prevOdds = JSON.parse(localStorage.getItem('poolOddsSnapPrev') || '{}');
-      for (var t in oddsMap) {
-        if (prevOdds[t]) {
-          var d = parseFloat((parseFloat(oddsMap[t]) - parseFloat(prevOdds[t])).toFixed(1));
-          if (Math.abs(d) >= 0.1) deltaMap[t] = d;
+      if (historyData && historyData.length > 0) {
+        var todayStr = new Date().toISOString().substring(0,10);
+        var histDates = [...new Set(historyData.map(r => r.date).filter(Boolean))].sort();
+        var prevDate = null;
+        for (var di = histDates.length - 1; di >= 0; di--) {
+          if (histDates[di] < todayStr) { prevDate = histDates[di]; break; }
+        }
+        if (prevDate) {
+          var prevSnap = {};
+          historyData.filter(r => r.date === prevDate).forEach(r => {
+            if (r.team) prevSnap[r.team.toUpperCase()] = parseFloat(r.cup) || 0;
+          });
+          for (var t in oddsMap) {
+            if (prevSnap[t] !== undefined) {
+              var cur = parseFloat((oddsMap[t]||'0%').replace('%',''));
+              var d = parseFloat((cur - prevSnap[t]).toFixed(1));
+              if (Math.abs(d) >= 0.1) deltaMap[t] = d;
+            }
+          }
         }
       }
     } catch(e) {}
