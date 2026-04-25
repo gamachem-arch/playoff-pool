@@ -854,8 +854,6 @@ setInterval(render, 300000);
   if (isStandalone) return;
 
   var ua = navigator.userAgent;
-  var isIOS = /iphone|ipad|ipod/i.test(ua);
-  var isSafari = isIOS && /safari/i.test(ua) && !/crios|fxios|opios|chromium/i.test(ua);
   var isAndroid = /android/i.test(ua);
   var deferredPrompt = null;
 
@@ -895,9 +893,7 @@ setInterval(render, 300000);
     }
   }
 
-  if (isSafari) {
-    setTimeout(function(){ showBanner('ios'); }, 2500);
-  } else if (isAndroid) {
+  if (isAndroid) {
     window.addEventListener('beforeinstallprompt', function(e){
       e.preventDefault(); deferredPrompt = e;
       setTimeout(function(){ showBanner('android'); }, 2500);
