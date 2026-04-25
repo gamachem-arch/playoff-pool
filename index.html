@@ -94,6 +94,24 @@
   .team-wins.leading { color: var(--green); }
   .team-name.eliminated { opacity: 0.3; text-decoration: line-through; }
   .team-name.champion { color: #fbbf24; }
+
+  /* Eliminated team row in All Teams list */
+  .team-odds-row.eliminated { opacity: 0.35; }
+  .team-odds-row.eliminated .team-name-odds { text-decoration: line-through; }
+
+  /* Path to cup bars */
+  .ptc-bar-row { display:flex; align-items:center; gap:5px; }
+  .ptc-bar-track { flex:1; background:rgba(255,255,255,0.07); border-radius:2px; height:3px; }
+  .ptc-bar-fill { height:100%; border-radius:2px; opacity:0.75; }
+  .ptc-label { font-size:9px; color:var(--muted); font-family:Inter,sans-serif; flex-shrink:0; }
+
+  /* Share overlay */
+  #share-overlay { position:fixed; inset:0; z-index:10000; background:#0d1117; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:16px 14px; box-sizing:border-box; }
+  .share-section-label { font-size:9px; font-weight:700; letter-spacing:1.5px; color:var(--muted); text-transform:uppercase; margin:12px 0 6px; font-family:Inter,sans-serif; }
+  .share-series-row { display:flex; align-items:center; gap:6px; padding:5px 0; border-bottom:1px solid rgba(255,255,255,0.05); }
+  .share-series-team { flex:1; display:flex; align-items:center; gap:4px; }
+  .share-series-score { font-size:14px; font-weight:900; color:#f9fafb; font-family:'Barlow Condensed',sans-serif; letter-spacing:1px; flex-shrink:0; min-width:28px; text-align:center; }
+  .share-btn { background:rgba(255,255,255,0.08); border:none; color:var(--muted); font-size:11px; padding:4px 10px; border-radius:6px; cursor:pointer; font-family:Inter,sans-serif; vertical-align:middle; }
   
   .game-badge { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 600; color: var(--muted); letter-spacing: 0.5px; }
   .game-badge.live { color: #f87171; }
@@ -560,6 +578,104 @@ function buildPlayerSparkline(histData, teams, colorVar) {
   </svg>`;
 }
 
+function getTeamOwner(team) {
+  for (const [player, teams] of Object.entries(POOL)) {
+    if (teams.includes(team)) return player;
+  }
+  return null;
+}
+
+function buildPathToCup(teams, oddsMap, playerKey) {
+  const bars = teams
+    .map(t => ({ t, pct: parseFloat((oddsMap[t]||'0%').replace('%','')) }))
+    .filter(x => x.pct > 0.05)
+    .sort((a,b) => b.pct - a.pct);
+  if (!bars.length) return '';
+  const max = bars[0].pct;
+  const color = `var(--${playerKey})`;
+  return `<div style="margin-top:7px;display:flex;flex-direction:column;gap:4px;padding:0 2px">
+    ${bars.map(({t, pct}) => {
+      const w = Math.round((pct/max)*100);
+      return `<div class="ptc-bar-row">
+        <span class="ptc-label" style="width:22px;text-align:right">${t}</span>
+        <div class="ptc-bar-track"><div class="ptc-bar-fill" style="width:${w}%;background:${color}"></div></div>
+        <span class="ptc-label" style="width:30px">${pct.toFixed(1)}%</span>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function buildShareSeriesRow(s) {
+  if (!s || s.topTeam === 'TBD') return '';
+  const o1 = getTeamOwner(s.topTeam), o2 = getTeamOwner(s.bottomTeam);
+  const pill = (p) => p ? `<span style="background:var(--${p});color:#fff;font-size:8px;font-weight:800;padding:1px 5px;border-radius:10px;flex-shrink:0">${p}</span>` : '';
+  const t1elim = s.bottomWins === 4, t2elim = s.topWins === 4;
+  return `<div class="share-series-row">
+    <div class="share-series-team" style="${t1elim?'opacity:0.4':''}">
+      ${pill(o1)}<span style="font-size:11px;font-weight:700;color:#f9fafb;font-family:'Barlow Condensed',sans-serif">${s.topTeam}</span>
+    </div>
+    <div class="share-series-score">${s.topWins}–${s.bottomWins}</div>
+    <div class="share-series-team" style="justify-content:flex-end;${t2elim?'opacity:0.4':''}">
+      <span style="font-size:11px;font-weight:700;color:#f9fafb;font-family:'Barlow Condensed',sans-serif">${s.bottomTeam}</span>${pill(o2)}
+    </div>
+  </div>`;
+}
+
+function showShareOverlay() {
+  const st = _poolState;
+  if (!st.pieTotals) return;
+  const me = getMyPlayer();
+  const rankLabels = ['1ST','2ND','3RD','4TH'];
+
+  const standingsHtml = st.pieTotals.map((p, i) => `
+    <div style="background:rgba(255,255,255,0.05);border-radius:12px;padding:10px 8px;text-align:center;position:relative">
+      ${p.player===me?'<div style="position:absolute;top:5px;right:5px;font-size:7px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--muted);background:rgba(255,255,255,0.07);padding:2px 5px;border-radius:4px">you</div>':''}
+      <div style="font-size:8px;color:var(--muted);letter-spacing:1px;margin-bottom:3px;font-family:Inter,sans-serif">${rankLabels[i]}</div>
+      <span style="background:var(--${p.player});color:#fff;font-size:10px;font-weight:800;padding:2px 7px;border-radius:10px;letter-spacing:0.3px;font-family:Inter,sans-serif">${p.player}</span>
+      <div style="font-size:10px;color:var(--muted);margin:3px 0 2px;font-family:Inter,sans-serif">${p.name}</div>
+      <div style="font-size:24px;font-weight:900;color:var(--${p.player});font-family:'Barlow Condensed',sans-serif;line-height:1.1;margin-bottom:3px">${p.total.toFixed(1)}%</div>
+      <div style="font-size:8px;color:var(--muted);font-family:Inter,sans-serif">${p.teams.join(' · ')}</div>
+    </div>`).join('');
+
+  let seriesHtml = '';
+  if (st.parsed) {
+    const { r1w, r1e, r2, r3, r4 } = st.parsed;
+    const activeR1 = [...(r1w||[]), ...(r1e||[])].filter(s => s && s.topTeam !== 'TBD');
+    const activeR2 = (r2||[]).filter(s => s && s.topTeam !== 'TBD');
+    const activeR3 = (r3||[]).filter(s => s && s.topTeam !== 'TBD');
+    if (activeR1.length) {
+      seriesHtml += `<div class="share-section-label">Round 1</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">${activeR1.map(buildShareSeriesRow).join('')}</div>`;
+    }
+    if (activeR2.length) {
+      seriesHtml += `<div class="share-section-label">Round 2</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">${activeR2.map(buildShareSeriesRow).join('')}</div>`;
+    }
+    if (activeR3.length) {
+      seriesHtml += `<div class="share-section-label">Conference Finals</div>${activeR3.map(buildShareSeriesRow).join('')}`;
+    }
+    if (r4 && r4.topTeam !== 'TBD') {
+      seriesHtml += `<div class="share-section-label">Stanley Cup Final</div>${buildShareSeriesRow(r4)}`;
+    }
+  }
+
+  const date = new Date().toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
+  const overlay = document.createElement('div');
+  overlay.id = 'share-overlay';
+  overlay.innerHTML = `
+    <div style="max-width:440px;margin:0 auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;letter-spacing:1px;color:#f9fafb">🏒 PLAYOFF POOL</div>
+          <div style="font-size:10px;color:var(--muted);font-family:Inter,sans-serif">${date}</div>
+        </div>
+        <button onclick="document.getElementById('share-overlay').remove()" style="background:rgba(255,255,255,0.08);border:none;color:#9ca3af;padding:7px 12px;border-radius:8px;cursor:pointer;font-family:Inter,sans-serif;font-size:12px">✕ Close</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px">${standingsHtml}</div>
+      ${seriesHtml}
+      <div style="text-align:center;padding:16px 0 4px;font-size:10px;color:rgba(255,255,255,0.2);font-family:Inter,sans-serif">📸 take a screenshot to share</div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
 function buildStandings(oddsMap, histData) {
   const me = getMyPlayer();
   const totals = Object.entries(POOL).map(([player, teams]) => {
@@ -571,7 +687,7 @@ function buildStandings(oddsMap, histData) {
   const ranks = ["1st","2nd","3rd","4th"];
   const hint = !me ? ' <span style="font-size:9px;opacity:0.4;font-weight:400;letter-spacing:0">· tap to personalize</span>' : '';
   return `<div class="standings">
-    <div class="standings-title">Pool standings — combined cup odds${hint}</div>
+    <div class="standings-title">Pool standings — combined cup odds${hint} <button class="share-btn" onclick="showShareOverlay()">📸 Share</button></div>
     <div class="standings-grid">
       ${totals.map((p,i) => `
         <div class="standing-card ${i===0?'first':''} ${p.player===me?'me-card':''}" onclick="setMyPlayer('${p.player}')" style="cursor:pointer">
@@ -581,6 +697,7 @@ function buildStandings(oddsMap, histData) {
           <div class="standing-name">${p.name}</div>
           <div class="standing-pct" style="color:var(--${p.player})">${p.total.toFixed(1)}%</div>
           ${buildPlayerSparkline(histData, p.teams, p.player)}
+          ${buildPathToCup(p.teams, oddsMap, p.player)}
           <div class="standing-teams">${p.teams.join(" · ")}</div>
         </div>`).join("")}
     </div>
@@ -666,8 +783,9 @@ function buildTeamOdds(oddsMap, roundOdds, histData) {
       ${interleaved.map(t => {
         const ro = roundOdds?.[t.team] || {};
         const isMine = myTeams.indexOf(t.team) >= 0;
+        const isElim = t.pct < 0.1;
         const myStyle = isMine ? `border-left-color:var(--${me});` : '';
-        return `<div class="team-odds-row${isMine?' my-team':''}" style="${myStyle}" onclick="toggleTeamDetail('${t.team}')">
+        return `<div class="team-odds-row${isMine?' my-team':''}${isElim?' eliminated':''}" style="${myStyle}" onclick="toggleTeamDetail('${t.team}')">
           <div class="tor-main">
             <span class="team-rank">${ranked.indexOf(t)+1}</span>
             <img class="tlogo-sm" src="https://assets.nhle.com/logos/nhl/svg/${t.team}_light.svg" onerror="this.style.display='none'">
@@ -826,7 +944,7 @@ async function render() {
       return {player:player, name:PLAYER_NAMES[player], total:total, teams:teams};
     }).sort(function(a,b){return b.total-a.total;});
     var pieSvg = buildPieChart(pieTotals);
-    _poolState = { pieTotals, pieSvg, oddsMap, roundOdds, historyData };
+    _poolState = { pieTotals, pieSvg, oddsMap, roundOdds, historyData, parsed };
     var legendEl = document.getElementById("legend-pie-wrap");
     if(legendEl) legendEl.innerHTML = _buildLegendPieHtml(pieTotals, pieSvg);
     document.getElementById("standings-wrap").innerHTML = buildStandings(oddsMap, historyData) + buildTeamOdds(oddsMap, roundOdds, historyData);
