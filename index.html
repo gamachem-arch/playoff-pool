@@ -534,7 +534,7 @@ function buildPlayerSparkline(histData, teams, colorVar) {
   const points = dates.map(date => {
     const val = teams.reduce((sum, team) => {
       const e = histData.find(d => d.date === date && (d.team||'').toUpperCase() === team.toUpperCase());
-      return sum + (e ? normPct(e.cup)||0 : 0);
+      return sum + (e ? parseFloat(e.cup)||0 : 0);
     }, 0);
     return val;
   });
@@ -600,7 +600,7 @@ function buildSparkline(histData, team, liveVal) {
   const raw = (histData||[])
     .filter(d => (d.team||'').toUpperCase() === team.toUpperCase() && d.cup != null && d.cup !== '')
     .sort((a,b) => (a.date||'').localeCompare(b.date||''))
-    .map(d => ({ date: d.date, val: normPct(d.cup) }))
+    .map(d => ({ date: d.date, val: parseFloat(d.cup) }))
     .filter(d => !isNaN(d.val));
   // Inject today's live cup value as the final point
   if (liveVal != null) {
