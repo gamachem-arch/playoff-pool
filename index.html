@@ -887,8 +887,7 @@ async function render() {
             if (snap) {
               var prev = parseFloat(snap.cup) || 0;
               var d = parseFloat((cur - prev).toFixed(1));
-              if (Math.abs(d) >= 0.1) { deltaMap[t] = d; }
-              break;
+              if (Math.abs(d) >= 0.1) { deltaMap[t] = d; break; }
             }
           }
         }
