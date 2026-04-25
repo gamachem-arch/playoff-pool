@@ -244,7 +244,7 @@ function pill(team) {
 
 async function fetchHistory() {
   try {
-    const res = await fetch(ODDS_API + "?action=history&t=" + Date.now());
+    const res = await fetch(ODDS_API + "?action=history&t=" + Date.now(), {cache: "no-store"});
     return await res.json();
   } catch(e) { return []; }
 }
