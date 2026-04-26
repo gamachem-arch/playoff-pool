@@ -628,6 +628,112 @@ function buildPlayerSparkline(histData, teams, colorVar) {
   </svg>`;
 }
 
+function getSeriesForTeams(t1, t2) {
+  var st = _poolState;
+  if (!st.parsed) return null;
+  var all = [...(st.parsed.r1w||[]),...(st.parsed.r1e||[]),...(st.parsed.r2||[]),...(st.parsed.r3||[]),st.parsed.r4].filter(Boolean);
+  return all.find(function(s){ return (s.topTeam===t1&&s.bottomTeam===t2)||(s.topTeam===t2&&s.bottomTeam===t1); }) || null;
+}
+
+function showRoundupOverlay() {
+  var st = _poolState;
+  if (!st.pieTotals || !st.gamesData) return;
+
+  function etDate(utcStr) {
+    var d = new Date(new Date(utcStr).getTime() - 4*60*60*1000);
+    return d.toISOString().slice(0,10);
+  }
+  var etNow = new Date(Date.now() - 4*60*60*1000);
+  var todayET = etNow.toISOString().slice(0,10);
+  var yesterdayET = new Date(etNow.getTime() - 86400000).toISOString().slice(0,10);
+
+  var yesterdayGames = st.gamesData.filter(function(g){ return g.startUTC && etDate(g.startUTC)===yesterdayET && (g.state==='OFF'||g.state==='FINAL'); });
+  var tonightGames   = st.gamesData.filter(function(g){ return g.startUTC && etDate(g.startUTC)===todayET   && (g.state==='FUT'||g.state==='PRE'); });
+
+  var dateLabel = new Date(yesterdayET + 'T12:00:00Z').toLocaleDateString('en-US',{month:'long',day:'numeric',timeZone:'UTC'});
+  var lines = ['🏒 PLAYOFF ROUNDUP — ' + dateLabel, ''];
+
+  if (yesterdayGames.length === 0) {
+    lines.push('No playoff games yesterday.');
+    lines.push('');
+  } else {
+    yesterdayGames.forEach(function(g) {
+      var isOT = g.periodType==='OT' || (g.period > 3 && g.periodType!=='SO');
+      var isSO = g.periodType==='SO';
+      var suffix = isSO?' (SO)':isOT?' (OT)':'';
+      lines.push(g.away+' '+g.awayScore+' · '+g.home+' '+g.homeScore+suffix);
+      var series = getSeriesForTeams(g.away, g.home);
+      var winner=null, loser=null;
+      if (series) {
+        var w1=series.topWins, w2=series.bottomWins;
+        var isOver = w1===4 || w2===4;
+        if (isOver) {
+          winner = w1===4 ? series.topTeam : series.bottomTeam;
+          loser  = w1===4 ? series.bottomTeam : series.topTeam;
+          var ww=Math.max(w1,w2), lw=Math.min(w1,w2);
+          lines.push(winner+' wins '+ww+'-'+lw);
+        } else {
+          var seriesStr = w1===w2 ? 'Series tied '+w1+'-'+w2 : (w1>w2?series.topTeam:series.bottomTeam)+' leads '+Math.max(w1,w2)+'-'+Math.min(w1,w2);
+          lines.push(seriesStr);
+        }
+      }
+      var p1=getTeamOwner(g.away), p2=getTeamOwner(g.home);
+      var o1=parseFloat((st.oddsMap[g.away]||'0%').replace('%','')), o2=parseFloat((st.oddsMap[g.home]||'0%').replace('%',''));
+      var dm=st.deltaMap||{};
+      var arr=function(t){var d=dm[t];return d>0?' ▲':d<0?' ▼':''};
+      var fmt=function(team,odds,player){
+        if(team===loser) return team+' eliminated'+(player?' ('+player+')':'');
+        return team+arr(team)+' at '+odds.toFixed(1)+'%'+(player?' ('+player+')':'');
+      };
+      lines.push(fmt(g.away,o1,p1)+', '+fmt(g.home,o2,p2));
+      lines.push('');
+    });
+  }
+
+  lines.push('——————————————');
+  lines.push('STANDINGS');
+  ['🥇','🥈','🥉','4️⃣'].forEach(function(e,i){ var p=st.pieTotals[i]; if(p) lines.push(e+' '+p.name+' — '+p.total.toFixed(1)+'%'); });
+
+  if (tonightGames.length > 0) {
+    lines.push('');
+    lines.push('——————————————');
+    lines.push('TONIGHT');
+    tonightGames.forEach(function(g) {
+      var series = getSeriesForTeams(g.away, g.home);
+      var ctx = '';
+      if (series) {
+        var w1=series.topWins,w2=series.bottomWins;
+        ctx = w1===w2 ? ' (tied '+w1+'-'+w2+')' : ' ('+(w1>w2?series.topTeam:series.bottomTeam)+' leads '+Math.max(w1,w2)+'-'+Math.min(w1,w2)+')';
+      }
+      var timeStr='';
+      try { timeStr=' · '+new Date(g.startUTC).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',timeZone:'America/New_York',hour12:true})+' ET'; } catch(e){}
+      lines.push('🏒 '+g.away+' vs '+g.home+ctx+timeStr);
+    });
+  }
+
+  var text = lines.join('\n');
+  var overlay = document.createElement('div');
+  overlay.id = 'roundup-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;background:#0d1117;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 14px;box-sizing:border-box;';
+  overlay.innerHTML = '<div style="max-width:460px;margin:0 auto">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
+    +'<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:20px;font-weight:900;letter-spacing:1px;color:#f9fafb">📋 ROUNDUP</div>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button id="roundup-copy-btn" style="background:#3b82f6;border:none;color:#fff;font-family:Inter,sans-serif;font-size:12px;font-weight:700;padding:6px 14px;border-radius:8px;cursor:pointer">Copy</button>'
+    +'<button onclick="document.getElementById(\'roundup-overlay\').remove()" style="background:rgba(255,255,255,0.08);border:none;color:#9ca3af;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:Inter,sans-serif;font-size:12px">✕</button>'
+    +'</div></div>'
+    +'<textarea id="roundup-text" readonly style="width:100%;box-sizing:border-box;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:12px;color:#f9fafb;font-family:monospace;font-size:12px;line-height:1.7;padding:14px;min-height:420px;resize:none;outline:none;"></textarea>'
+    +'</div>';
+  document.body.appendChild(overlay);
+  document.getElementById('roundup-text').value = text;
+  document.getElementById('roundup-copy-btn').onclick = function() {
+    navigator.clipboard.writeText(text).then(function(){
+      var b=document.getElementById('roundup-copy-btn'); b.textContent='✓ Copied!';
+      setTimeout(function(){b.textContent='Copy';},2000);
+    });
+  };
+}
+
 function getTeamOwner(team) {
   for (const [player, teams] of Object.entries(POOL)) {
     if (teams.includes(team)) return player;
@@ -737,7 +843,7 @@ function buildStandings(oddsMap, histData) {
   const ranks = ["1st","2nd","3rd","4th"];
   const hint = !me ? ' <span style="font-size:9px;opacity:0.4;font-weight:400;letter-spacing:0">· tap to personalize</span>' : '';
   return `<div class="standings">
-    <div class="standings-title">Pool standings — combined cup odds${hint} <button class="share-btn" onclick="showShareOverlay()">📸 Share</button></div>
+    <div class="standings-title">Pool standings — combined cup odds${hint} <button class="share-btn" onclick="showRoundupOverlay()">📋 Roundup</button> <button class="share-btn" onclick="showShareOverlay()">📸 Share</button></div>
     <div class="standings-grid">
       ${totals.map((p,i) => `
         <div class="standing-card ${i===0?'first':''} ${p.player===me?'me-card':''}" onclick="setMyPlayer('${p.player}')" style="cursor:pointer">
@@ -1168,7 +1274,7 @@ async function render() {
       return {player:player, name:PLAYER_NAMES[player], total:total, teams:teams};
     }).sort(function(a,b){return b.total-a.total;});
     var pieSvg = buildPieChart(pieTotals);
-    _poolState = { pieTotals, pieSvg, oddsMap, roundOdds, historyData, parsed, gamesData: gamesRaw };
+    _poolState = { pieTotals, pieSvg, oddsMap, roundOdds, historyData, parsed, gamesData: gamesRaw, deltaMap };
     var legendEl = document.getElementById("legend-pie-wrap");
     if(legendEl) legendEl.innerHTML = _buildLegendPieHtml(pieTotals, pieSvg);
     document.getElementById("standings-wrap").innerHTML = buildStandings(oddsMap, historyData) + buildTeamOdds(oddsMap, roundOdds, historyData);
