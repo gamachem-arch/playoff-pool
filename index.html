@@ -690,9 +690,33 @@ function showRoundupOverlay() {
     });
   }
 
+  // compute prev-day player totals from historyData
+  var prevTotals = {};
+  if (st.historyData && st.historyData.length > 0) {
+    var todayStr2 = new Date().toISOString().slice(0,10);
+    var prevDates = [...new Set(st.historyData.map(function(r){return r.date;}).filter(Boolean))].sort().filter(function(d){return d<todayStr2;});
+    var prevDate = prevDates[prevDates.length-1];
+    if (prevDate) {
+      var prevSnaps = st.historyData.filter(function(r){return r.date===prevDate;});
+      Object.entries(POOL).forEach(function(kv){
+        var player=kv[0], teams=kv[1];
+        prevTotals[player] = teams.reduce(function(sum,t){
+          var snap=prevSnaps.find(function(r){return r.team===t;});
+          return sum + (snap ? parseFloat(snap.cup)||0 : 0);
+        },0);
+      });
+    }
+  }
+
   lines.push('——————————————');
   lines.push('STANDINGS');
-  ['🥇','🥈','🥉','4️⃣'].forEach(function(e,i){ var p=st.pieTotals[i]; if(p) lines.push(e+' '+p.name+' — '+p.total.toFixed(1)+'%'); });
+  ['🥇','🥈','🥉','4️⃣'].forEach(function(e,i){
+    var p=st.pieTotals[i];
+    if(!p) return;
+    var prev=prevTotals[p.player];
+    var arrow = prev!=null ? (p.total>prev+0.05?' ▲':p.total<prev-0.05?' ▼':'') : '';
+    lines.push(e+' '+p.name+' —'+arrow+' '+p.total.toFixed(1)+'%');
+  });
 
   if (tonightGames.length > 0) {
     lines.push('');
