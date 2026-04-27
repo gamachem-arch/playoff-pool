@@ -561,6 +561,15 @@ function seriesCard(s, label, oddsMap, gamesData, deltaMap, roundOdds, roundNum,
       <div class="tbd-row" style="border-top:1px solid var(--border)"><span class="tbd-text">TBD</span></div>
     </div>`;
   }
+  if (s.isPredicted) {
+    const t1 = s.topTeam === 'TBD' ? '?' : s.topTeam;
+    const t2 = s.bottomTeam === 'TBD' ? '?' : s.bottomTeam;
+    return `<div class="series">
+      <div class="series-header"><div class="series-round">${label}</div><span style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px">upcoming</span></div>
+      <div class="tbd-row"><span class="tbd-text" style="opacity:0.5">${t1}</span></div>
+      <div class="tbd-row" style="border-top:1px solid var(--border)"><span class="tbd-text" style="opacity:0.5">${t2}</span></div>
+    </div>`;
+  }
   const {topTeam:t1, bottomTeam:t2, topWins:w1, bottomWins:w2} = s;
   const t1won = w1===4, t2won = w2===4;
   const o1 = oddsMap[t1] || "";
@@ -801,17 +810,18 @@ function getTeamOwner(team) {
 function buildPathToCup(teams, oddsMap, playerKey) {
   const bars = teams
     .map(t => ({ t, pct: parseFloat((oddsMap[t]||'0%').replace('%','')) }))
-    .filter(x => x.pct > 0.05)
     .sort((a,b) => b.pct - a.pct);
-  if (!bars.length) return '';
-  const max = bars[0].pct;
+  if (bars.every(x => x.pct === 0)) return '';
+  const alive = bars.filter(x => x.pct >= 0.1);
+  const max = alive.length ? alive[0].pct : Math.max(...bars.map(x => x.pct), 0.1);
   const color = `var(--${playerKey})`;
   return `<div style="margin-top:7px;display:flex;flex-direction:column;gap:4px;padding:0 2px">
     ${bars.map(({t, pct}) => {
-      const w = Math.round((pct/max)*100);
-      return `<div class="ptc-bar-row">
+      const isElim = pct < 0.1;
+      const w = isElim ? Math.max(4, Math.round((pct/max)*100)) : Math.round((pct/max)*100);
+      return `<div class="ptc-bar-row"${isElim ? ' style="opacity:0.45"' : ''}>
         <span class="ptc-label" style="width:22px;text-align:right">${t}</span>
-        <div class="ptc-bar-track"><div class="ptc-bar-fill" style="width:${w}%;background:${color}"></div></div>
+        <div class="ptc-bar-track"><div class="ptc-bar-fill" style="width:${w}%;background:${isElim ? 'rgba(156,163,175,0.5)' : color}"></div></div>
         <span class="ptc-label" style="width:30px">${pct.toFixed(1)}%</span>
       </div>`;
     }).join('')}
@@ -894,24 +904,28 @@ function buildStandings(oddsMap, histData) {
   const totals = Object.entries(POOL).map(([player, teams]) => {
     let total = 0;
     for (const t of teams) total += parseFloat((oddsMap[t]||"0%").replace("%",""));
-    return { player, name: PLAYER_NAMES[player], total, teams };
+    const alive = teams.filter(t => parseFloat((oddsMap[t]||"0%").replace("%","")) >= 0.1).length;
+    return { player, name: PLAYER_NAMES[player], total, teams, alive };
   }).sort((a,b) => b.total - a.total);
 
   const ranks = ["1st","2nd","3rd","4th"];
   const hint = !me ? ' <span style="font-size:9px;opacity:0.4;font-weight:400;letter-spacing:0">· tap to personalize</span>' : '';
   return `<div class="standings">
-    <div class="standings-title">Pool standings — combined cup odds${hint} <button class="share-btn" onclick="showRoundupOverlay()">📋 Roundup</button> <button class="share-btn" onclick="showShareOverlay()">📸 Share</button></div>
+    <div class="standings-title">
+      <div>Pool standings — combined cup odds${hint}</div>
+      <div style="display:flex;gap:6px;margin-top:4px"><button class="share-btn" onclick="showRoundupOverlay()">📋 Roundup</button> <button class="share-btn" onclick="showShareOverlay()">📸 Share</button></div>
+    </div>
     <div class="standings-grid">
       ${totals.map((p,i) => `
         <div class="standing-card ${i===0?'first':''} ${p.player===me?'me-card':''}" onclick="setMyPlayer('${p.player}')" style="cursor:pointer">
           ${p.player===me ? '<div class="you-badge">you</div>' : ''}
           <div class="standing-rank">${ranks[i]}</div>
-          <span class="pool-pill pill-${p.player}">${p.player}</span>
+          <div style="display:flex;align-items:center;gap:4px"><span class="pool-pill pill-${p.player}">${p.player}</span><span style="font-size:9px;color:var(--muted)">${p.alive}/4</span></div>
           <div class="standing-name">${p.name}</div>
           <div class="standing-pct" style="color:var(--${p.player})">${p.total.toFixed(1)}%</div>
           ${buildPlayerSparkline(histData, p.teams, p.player, p.total)}
           ${buildPathToCup(p.teams, oddsMap, p.player)}
-          <div class="standing-teams">${p.teams.join(" · ")}</div>
+          <div class="standing-teams">${p.teams.map(t => parseFloat((oddsMap[t]||'0%').replace('%','')) < 0.1 ? `<span style="text-decoration:line-through;opacity:0.4">${t}</span>` : t).join(' · ')}</div>
         </div>`).join("")}
     </div>
   </div>`;
@@ -1123,7 +1137,29 @@ function toggleBracketCard(el) {
   el.classList.toggle('bc-open');
 }
 
+function getSeriesLeader(sr) {
+  if (!sr || !sr.topTeam || sr.topTeam === 'TBD') return 'TBD';
+  if (sr.topWins === 4) return sr.topTeam;
+  if (sr.bottomWins === 4) return sr.bottomTeam;
+  if (sr.topWins > sr.bottomWins) return sr.topTeam;
+  if (sr.bottomWins > sr.topWins) return sr.bottomTeam;
+  return 'TBD';
+}
+function predictedMatchup(s1, s2) {
+  var t1 = getSeriesLeader(s1), t2 = getSeriesLeader(s2);
+  if (t1 === 'TBD' && t2 === 'TBD') return null;
+  return {topTeam: t1, bottomTeam: t2, topWins: 0, bottomWins: 0, isPredicted: true};
+}
+
 function buildBracketCard(s, gamesData, isLarge, shareMode, isCompact) {
+  if (s && s.isPredicted) {
+    var pt1 = s.topTeam === 'TBD' ? '?' : s.topTeam;
+    var pt2 = s.bottomTeam === 'TBD' ? '?' : s.bottomTeam;
+    return '<div class="bc-card bc-tbd">'
+      + '<div class="bc-team"><span class="bc-name" style="opacity:0.45">' + pt1 + '</span><span class="bc-wins" style="opacity:0.25">—</span></div>'
+      + '<div class="bc-team"><span class="bc-name" style="opacity:0.45">' + pt2 + '</span><span class="bc-wins" style="opacity:0.25">—</span></div>'
+      + '</div>';
+  }
   if (!s || !s.topTeam || s.topTeam === 'TBD') {
     return '<div class="bc-card bc-tbd">'
       + '<div class="bc-team"><span class="bc-name">TBD</span><span class="bc-wins">—</span></div>'
@@ -1187,6 +1223,12 @@ function buildBracket(shareMode) {
   var r3 = p.r3 || [null,null];
   var r4 = p.r4 || null;
   var gd = st.gamesData || [];
+  var pr2 = [
+    r2[0] || predictedMatchup(r1w[0], r1w[1]),
+    r2[1] || predictedMatchup(r1w[2], r1w[3]),
+    r2[2] || predictedMatchup(r1e[0], r1e[1]),
+    r2[3] || predictedMatchup(r1e[2], r1e[3]),
+  ];
 
   var ar = getActiveRound(p);
   var cw1 = ar === 1 ? '' : 'width:50px';
@@ -1202,12 +1244,12 @@ function buildBracket(shareMode) {
     + '<div class="bracket-half">'
     + '<div class="bc-half-group">'
     +   '<div class="bc-r1-col" style="' + cw1 + '">' + cl(r1w[0]) + cl(r1w[1]) + '</div>'
-    +   '<div class="bc-r2-col" style="' + cw2 + '"><div class="bc-round-label">Rd 2</div>' + c(r2[0], 2) + '</div>'
+    +   '<div class="bc-r2-col" style="' + cw2 + '"><div class="bc-round-label">Rd 2</div>' + c(pr2[0], 2) + '</div>'
     + '</div>'
     + '<div class="bc-center-gap"></div>'
     + '<div class="bc-half-group" style="flex-direction:row-reverse">'
     +   '<div class="bc-r1-col" style="' + cw1 + '">' + cl(r1e[0]) + cl(r1e[1]) + '</div>'
-    +   '<div class="bc-r2-col" style="' + cw2 + '"><div class="bc-round-label">Rd 2</div>' + c(r2[2], 2) + '</div>'
+    +   '<div class="bc-r2-col" style="' + cw2 + '"><div class="bc-round-label">Rd 2</div>' + c(pr2[2], 2) + '</div>'
     + '</div>'
     + '</div>'
     + '<div class="bracket-middle">'
@@ -1218,12 +1260,12 @@ function buildBracket(shareMode) {
     + '<div class="bracket-half" style="margin-top:2px">'
     + '<div class="bc-half-group">'
     +   '<div class="bc-r1-col" style="' + cw1 + '">' + cl(r1w[2]) + cl(r1w[3]) + '</div>'
-    +   '<div class="bc-r2-col" style="' + cw2 + '"><div class="bc-round-label">Rd 2</div>' + c(r2[1], 2) + '</div>'
+    +   '<div class="bc-r2-col" style="' + cw2 + '"><div class="bc-round-label">Rd 2</div>' + c(pr2[1], 2) + '</div>'
     + '</div>'
     + '<div class="bc-center-gap"></div>'
     + '<div class="bc-half-group" style="flex-direction:row-reverse">'
     +   '<div class="bc-r1-col" style="' + cw1 + '">' + cl(r1e[2]) + cl(r1e[3]) + '</div>'
-    +   '<div class="bc-r2-col" style="' + cw2 + '"><div class="bc-round-label">Rd 2</div>' + c(r2[3], 2) + '</div>'
+    +   '<div class="bc-r2-col" style="' + cw2 + '"><div class="bc-round-label">Rd 2</div>' + c(pr2[3], 2) + '</div>'
     + '</div>'
     + '</div>'
     + '</div>';
@@ -1288,6 +1330,13 @@ async function render() {
     const parsed = parseSeries(nhlRaw) || fallbackParsed();
     const { r1w, r1e, r2, r3, r4 } = parsed;
 
+    const r2disp = [
+      r2[0] || predictedMatchup(r1w[0], r1w[1]),
+      r2[1] || predictedMatchup(r1w[2], r1w[3]),
+      r2[2] || predictedMatchup(r1e[0], r1e[1]),
+      r2[3] || predictedMatchup(r1e[2], r1e[3]),
+    ];
+
     const r2HasTeams = r2.some(s => s && s.topTeam !== 'TBD');
     const r2AllTeams = r2.every(s => s && s.topTeam !== 'TBD');
     const r3HasTeams = r3.some(s => s && s.topTeam !== 'TBD');
@@ -1307,7 +1356,7 @@ async function render() {
 
     html += makeRoundSection('r2', 'Round 2',
       confLabels + `<div class="four-col">
-        ${sc(r2[0],"West R2",gamesRaw,2)}${sc(r2[2],"East R2",gamesRaw,2)}${sc(r2[1],"West R2",gamesRaw,2)}${sc(r2[3],"East R2",gamesRaw,2)}
+        ${sc(r2disp[0],"West R2",gamesRaw,2)}${sc(r2disp[2],"East R2",gamesRaw,2)}${sc(r2disp[1],"West R2",gamesRaw,2)}${sc(r2disp[3],"East R2",gamesRaw,2)}
       </div>`, !r2HasTeams);
 
     html += makeRoundSection('r3', 'Conference Finals',
