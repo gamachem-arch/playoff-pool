@@ -247,9 +247,9 @@ const R1_WEST = [
   {topTeam:"EDM",bottomTeam:"ANA"},
 ];
 const R1_EAST = [
-  {topTeam:"CAR",bottomTeam:"OTT"},
-  {topTeam:"TBL",bottomTeam:"MTL"},
   {topTeam:"BUF",bottomTeam:"BOS"},
+  {topTeam:"TBL",bottomTeam:"MTL"},
+  {topTeam:"CAR",bottomTeam:"OTT"},
   {topTeam:"PIT",bottomTeam:"PHI"},
 ];
 
@@ -369,7 +369,6 @@ function parseSeries(data) {
   if (!Array.isArray(data)) return null;
 
   const byTeams = {};
-  const byLetter = {};
 
   for (const s of data) {
     const t1 = s.topTeam?.toUpperCase();
@@ -382,7 +381,6 @@ function parseSeries(data) {
       round: s.round ?? 1,
     };
     if (t1 && t2) byTeams[[t1,t2].sort().join("-")] = entry;
-    if (s.letter) byLetter[s.letter.toUpperCase()] = entry;
   }
 
   function findR1(t1, t2) {
@@ -392,9 +390,41 @@ function parseSeries(data) {
   const r1w = R1_WEST.map(m => findR1(m.topTeam, m.bottomTeam));
   const r1e = R1_EAST.map(m => findR1(m.topTeam, m.bottomTeam));
 
-  const r2 = ["I","J","K","L"].map(l => byLetter[l] || null);
-  const r3 = ["M","N"].map(l => byLetter[l] || null);
-  const r4 = byLetter["O"] || null;
+  // Bracket quadrant team sets — place R2/R3 into the correct slot by team origin
+  const westUpper = new Set(R1_WEST.slice(0,2).flatMap(m => [m.topTeam, m.bottomTeam]));
+  const westLower = new Set(R1_WEST.slice(2,4).flatMap(m => [m.topTeam, m.bottomTeam]));
+  const eastUpper = new Set(R1_EAST.slice(0,2).flatMap(m => [m.topTeam, m.bottomTeam]));
+  const eastLower = new Set(R1_EAST.slice(2,4).flatMap(m => [m.topTeam, m.bottomTeam]));
+  const allWest = new Set([...westUpper, ...westLower]);
+  const allEast = new Set([...eastUpper, ...eastLower]);
+
+  const r2 = [null, null, null, null];
+  const r3 = [null, null];
+  let r4 = null;
+
+  for (const s of data) {
+    const round = s.round ?? 1;
+    if (round < 2) continue;
+    const t1 = s.topTeam?.toUpperCase();
+    const t2 = s.bottomTeam?.toUpperCase();
+    const entry = {topTeam:t1||"TBD", bottomTeam:t2||"TBD", topWins:s.topWins??0, bottomWins:s.bottomWins??0, round};
+    const teams = [t1, t2].filter(t => t && t !== "TBD");
+    if (round === 2) {
+      for (const t of teams) {
+        if (westUpper.has(t)) { r2[0] = entry; break; }
+        if (westLower.has(t)) { r2[1] = entry; break; }
+        if (eastUpper.has(t)) { r2[2] = entry; break; }
+        if (eastLower.has(t)) { r2[3] = entry; break; }
+      }
+    } else if (round === 3) {
+      for (const t of teams) {
+        if (allWest.has(t)) { r3[0] = entry; break; }
+        if (allEast.has(t)) { r3[1] = entry; break; }
+      }
+    } else if (round === 4) {
+      r4 = entry;
+    }
+  }
 
   return { r1w, r1e, r2, r3, r4 };
 }
@@ -595,17 +625,20 @@ function buildPieChart(totals) {
   return '<svg width="44" height="44" viewBox="0 0 80 80" style="flex-shrink:0">'+slices+'</svg>';
 }
 
-function buildPlayerSparkline(histData, teams, colorVar) {
+function buildPlayerSparkline(histData, teams, colorVar, liveTotal) {
   if (!histData || histData.length < 2) return '';
   const dates = [...new Set(histData.map(d => d.date).filter(Boolean))].sort();
   if (dates.length < 2) return '';
+  const today = new Date().toISOString().substring(0,10);
   const points = dates.map(date => {
+    if (date === today && liveTotal != null) return liveTotal;
     const val = teams.reduce((sum, team) => {
       const e = histData.find(d => d.date === date && (d.team||'').toUpperCase() === team.toUpperCase());
       return sum + (e ? parseFloat(e.cup)||0 : 0);
     }, 0);
     return val;
   });
+  if (!dates.includes(today) && liveTotal != null) { dates.push(today); points.push(liveTotal); }
   const min = Math.min(...points), max = Math.max(...points);
   const range = max - min || 1;
   const W = 160, H = 28, padX = 4, padY = 4;
@@ -876,7 +909,7 @@ function buildStandings(oddsMap, histData) {
           <span class="pool-pill pill-${p.player}">${p.player}</span>
           <div class="standing-name">${p.name}</div>
           <div class="standing-pct" style="color:var(--${p.player})">${p.total.toFixed(1)}%</div>
-          ${buildPlayerSparkline(histData, p.teams, p.player)}
+          ${buildPlayerSparkline(histData, p.teams, p.player, p.total)}
           ${buildPathToCup(p.teams, oddsMap, p.player)}
           <div class="standing-teams">${p.teams.join(" · ")}</div>
         </div>`).join("")}
@@ -1269,14 +1302,12 @@ async function render() {
 
     let html = makeRoundSection('r1', 'Round 1',
       confLabels + `<div class="four-col">
-        ${r1w.map(s => sc(s,"Round 1",gamesRaw,1)).join("")}
-        ${r1e.map(s => sc(s,"Round 1",gamesRaw,1)).join("")}
+        ${r1w.map((s,i) => sc(s,"Round 1",gamesRaw,1) + sc(r1e[i],"Round 1",gamesRaw,1)).join("")}
       </div>`, r2AllTeams);
 
     html += makeRoundSection('r2', 'Round 2',
       confLabels + `<div class="four-col">
-        ${sc(r2[0],"West R2",gamesRaw,2)}${sc(r2[1],"West R2",gamesRaw,2)}
-        ${sc(r2[2],"East R2",gamesRaw,2)}${sc(r2[3],"East R2",gamesRaw,2)}
+        ${sc(r2[0],"West R2",gamesRaw,2)}${sc(r2[2],"East R2",gamesRaw,2)}${sc(r2[1],"West R2",gamesRaw,2)}${sc(r2[3],"East R2",gamesRaw,2)}
       </div>`, !r2HasTeams);
 
     html += makeRoundSection('r3', 'Conference Finals',
