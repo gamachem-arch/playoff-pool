@@ -564,10 +564,30 @@ function seriesCard(s, label, oddsMap, gamesData, deltaMap, roundOdds, roundNum,
   if (s.isPredicted) {
     const t1 = s.topTeam === 'TBD' ? '?' : s.topTeam;
     const t2 = s.bottomTeam === 'TBD' ? '?' : s.bottomTeam;
+    function predSlotRow(teamStr, borderTop) {
+      const bt = borderTop ? 'border-top:1px solid var(--border);' : '';
+      if (teamStr === '?') return `<div class="tbd-row" style="${bt}"><span class="tbd-text" style="opacity:0.5">?</span></div>`;
+      if (teamStr.includes('/')) {
+        const [pa, pb] = teamStr.split('/');
+        const oa = roundOdds?.[pa]?.r2 || '', ob = roundOdds?.[pb]?.r2 || '';
+        return `<div class="tbd-row" style="${bt}display:flex;align-items:center;justify-content:center;gap:2px">`
+          + `<span style="opacity:0.6;font-weight:700;font-family:'Barlow Condensed',sans-serif;font-size:14px">${pa}</span>`
+          + (oa ? `<span style="opacity:0.4;font-size:10px;margin-left:2px">${oa}</span>` : '')
+          + `<span style="opacity:0.2;margin:0 6px">/</span>`
+          + `<span style="opacity:0.6;font-weight:700;font-family:'Barlow Condensed',sans-serif;font-size:14px">${pb}</span>`
+          + (ob ? `<span style="opacity:0.4;font-size:10px;margin-left:2px">${ob}</span>` : '')
+          + `</div>`;
+      }
+      const p = roundOdds?.[teamStr]?.r2 || '';
+      return `<div class="tbd-row" style="${bt}justify-content:space-between;padding:0 10px">`
+        + `<span style="opacity:0.6;font-weight:700;font-family:'Barlow Condensed',sans-serif;font-size:14px">${teamStr}</span>`
+        + (p ? `<span style="opacity:0.4;font-size:10px;font-family:Inter,sans-serif">${p}</span>` : '')
+        + `</div>`;
+    }
     return `<div class="series">
-      <div class="series-header"><div class="series-round">${label}</div><span style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px">upcoming</span></div>
-      <div class="tbd-row"><span class="tbd-text" style="opacity:0.5">${t1}</span></div>
-      <div class="tbd-row" style="border-top:1px solid var(--border)"><span class="tbd-text" style="opacity:0.5">${t2}</span></div>
+      <div class="series-header"><div class="series-round">${label}</div></div>
+      ${predSlotRow(t1, false)}
+      ${predSlotRow(t2, true)}
     </div>`;
   }
   const {topTeam:t1, bottomTeam:t2, topWins:w1, bottomWins:w2} = s;
@@ -588,9 +608,25 @@ function seriesCard(s, label, oddsMap, gamesData, deltaMap, roundOdds, roundNum,
   const isLive = isSeriesLive(gamesData, t1, t2);
   const liveDot = isLive ? '<span class="live-dot"></span>' : '';
   const t2isTBD = !t2 || t2 === 'TBD';
+  const t2isPred = t2 && t2.includes('/');
+  let predRow2 = '';
+  if (t2isPred) {
+    const [pa, pb] = t2.split('/');
+    const oa = roundOdds?.[pa]?.r2 || '';
+    const ob = roundOdds?.[pb]?.r2 || '';
+    predRow2 = `<div class="tbd-row" style="border-top:1px solid var(--border);display:flex;align-items:center;justify-content:center;gap:2px">`
+      + `<span style="opacity:0.6;font-weight:700;font-family:'Barlow Condensed',sans-serif;font-size:14px">${pa}</span>`
+      + (oa ? `<span style="opacity:0.4;font-size:10px;margin-left:2px">${oa}</span>` : '')
+      + `<span style="opacity:0.2;margin:0 6px">/</span>`
+      + `<span style="opacity:0.6;font-weight:700;font-family:'Barlow Condensed',sans-serif;font-size:14px">${pb}</span>`
+      + (ob ? `<span style="opacity:0.4;font-size:10px;margin-left:2px">${ob}</span>` : '')
+      + `</div>`;
+  }
   const row2 = t2isTBD
     ? `<div class="tbd-row" style="border-top:1px solid var(--border)"><span class="tbd-text">TBD</span></div>`
-    : `<div class="team-row${t2won?' series-winner':t1won?' series-elim':''}">
+    : t2isPred
+      ? predRow2
+      : `<div class="team-row${t2won?' series-winner':t1won?' series-elim':''}">
       ${pill(t2)}
       <img class="tlogo" src="${logoBase}${t2}_light.svg" onerror="this.style.display='none'">
       <span class="team-name ${t1won?'eliminated':''} ${t2won?'champion':''}">${t2}</span>
@@ -1141,14 +1177,26 @@ function getSeriesLeader(sr) {
   if (!sr || !sr.topTeam || sr.topTeam === 'TBD') return 'TBD';
   if (sr.topWins === 4) return sr.topTeam;
   if (sr.bottomWins === 4) return sr.bottomTeam;
-  if (sr.topWins > sr.bottomWins) return sr.topTeam;
-  if (sr.bottomWins > sr.topWins) return sr.bottomTeam;
-  return 'TBD';
+  return sr.topTeam + '/' + sr.bottomTeam;
 }
 function predictedMatchup(s1, s2) {
   var t1 = getSeriesLeader(s1), t2 = getSeriesLeader(s2);
   if (t1 === 'TBD' && t2 === 'TBD') return null;
   return {topTeam: t1, bottomTeam: t2, topWins: 0, bottomWins: 0, isPredicted: true};
+}
+function augmentPartialR2(series, s1, s2) {
+  if (!series || series.isPredicted) return series;
+  var topTBD = !series.topTeam || series.topTeam === 'TBD';
+  var botTBD = !series.bottomTeam || series.bottomTeam === 'TBD';
+  if (!topTBD && !botTBD) return series;
+  var knownTeam = topTBD ? series.bottomTeam : series.topTeam;
+  var s1has = s1 && (s1.topTeam === knownTeam || s1.bottomTeam === knownTeam);
+  var otherSeries = s1has ? s2 : s1;
+  var pred = getSeriesLeader(otherSeries);
+  if (!pred || pred === 'TBD') return series;
+  var out = Object.assign({}, series);
+  if (topTBD) out.topTeam = pred; else out.bottomTeam = pred;
+  return out;
 }
 
 function buildBracketCard(s, gamesData, isLarge, shareMode, isCompact) {
@@ -1156,14 +1204,14 @@ function buildBracketCard(s, gamesData, isLarge, shareMode, isCompact) {
     var pt1 = s.topTeam === 'TBD' ? '?' : s.topTeam;
     var pt2 = s.bottomTeam === 'TBD' ? '?' : s.bottomTeam;
     return '<div class="bc-card bc-tbd">'
-      + '<div class="bc-team"><span class="bc-name" style="opacity:0.45">' + pt1 + '</span><span class="bc-wins" style="opacity:0.25">—</span></div>'
-      + '<div class="bc-team"><span class="bc-name" style="opacity:0.45">' + pt2 + '</span><span class="bc-wins" style="opacity:0.25">—</span></div>'
+      + '<div class="bc-team"><span class="bc-name" style="opacity:0.45">' + pt1 + '</span></div>'
+      + '<div class="bc-team"><span class="bc-name" style="opacity:0.45">' + pt2 + '</span></div>'
       + '</div>';
   }
   if (!s || !s.topTeam || s.topTeam === 'TBD') {
     return '<div class="bc-card bc-tbd">'
-      + '<div class="bc-team"><span class="bc-name">TBD</span><span class="bc-wins">—</span></div>'
-      + '<div class="bc-team"><span class="bc-name">TBD</span><span class="bc-wins">—</span></div>'
+      + '<div class="bc-team" style="justify-content:center"><span class="bc-name" style="color:var(--muted)">TBD</span></div>'
+      + '<div class="bc-team" style="justify-content:center"><span class="bc-name" style="color:var(--muted)">TBD</span></div>'
       + '</div>';
   }
   var t1 = s.topTeam, t2 = s.bottomTeam;
@@ -1194,9 +1242,12 @@ function buildBracketCard(s, gamesData, isLarge, shareMode, isCompact) {
   var clickAttr = (!shareMode && gamesHtml) ? ' onclick="toggleBracketCard(this)"' : '';
   var t1win = w1 === 4, t2win = w2 === 4;
   var t2isTBD = !t2 || t2 === 'TBD';
+  var t2isPred = t2 && t2.includes('/');
   var row2 = t2isTBD
-    ? '<div class="bc-team"><span class="bc-name" style="color:var(--muted);font-weight:400">TBD</span><span class="bc-wins" style="opacity:0.3">—</span></div>'
-    : '<div class="bc-team' + (t2elim ? ' bc-elim' : t2win ? ' bc-winner' : '') + '" style="border-left-color:' + (c2||'transparent') + '">'
+    ? '<div class="bc-team" style="justify-content:center"><span class="bc-name" style="color:var(--muted);font-weight:400">TBD</span></div>'
+    : t2isPred
+      ? '<div class="bc-team"><span class="bc-name" style="opacity:0.45">' + t2 + '</span></div>'
+      : '<div class="bc-team' + (t2elim ? ' bc-elim' : t2win ? ' bc-winner' : '') + '" style="border-left-color:' + (c2||'transparent') + '">'
       + '<img class="bc-logo" src="https://assets.nhle.com/logos/nhl/svg/' + t2 + '_light.svg" onerror="this.style.display=\'none\'">'
       + '<span class="bc-name">' + t2 + '</span>'
       + p2pill
@@ -1223,11 +1274,17 @@ function buildBracket(shareMode) {
   var r3 = p.r3 || [null,null];
   var r4 = p.r4 || null;
   var gd = st.gamesData || [];
+  function predBracket(s1, s2) {
+    var s1done = s1 && (s1.topWins === 4 || s1.bottomWins === 4);
+    var s2done = s2 && (s2.topWins === 4 || s2.bottomWins === 4);
+    if (!s1done && !s2done) return null;
+    return predictedMatchup(s1, s2);
+  }
   var pr2 = [
-    r2[0] || predictedMatchup(r1w[0], r1w[1]),
-    r2[1] || predictedMatchup(r1w[2], r1w[3]),
-    r2[2] || predictedMatchup(r1e[0], r1e[1]),
-    r2[3] || predictedMatchup(r1e[2], r1e[3]),
+    augmentPartialR2(r2[0] || predBracket(r1w[0], r1w[1]), r1w[0], r1w[1]),
+    augmentPartialR2(r2[1] || predBracket(r1w[2], r1w[3]), r1w[2], r1w[3]),
+    augmentPartialR2(r2[2] || predBracket(r1e[0], r1e[1]), r1e[0], r1e[1]),
+    augmentPartialR2(r2[3] || predBracket(r1e[2], r1e[3]), r1e[2], r1e[3]),
   ];
 
   var ar = getActiveRound(p);
@@ -1331,10 +1388,10 @@ async function render() {
     const { r1w, r1e, r2, r3, r4 } = parsed;
 
     const r2disp = [
-      r2[0] || predictedMatchup(r1w[0], r1w[1]),
-      r2[1] || predictedMatchup(r1w[2], r1w[3]),
-      r2[2] || predictedMatchup(r1e[0], r1e[1]),
-      r2[3] || predictedMatchup(r1e[2], r1e[3]),
+      augmentPartialR2(r2[0] || predictedMatchup(r1w[0], r1w[1]), r1w[0], r1w[1]),
+      augmentPartialR2(r2[1] || predictedMatchup(r1w[2], r1w[3]), r1w[2], r1w[3]),
+      augmentPartialR2(r2[2] || predictedMatchup(r1e[0], r1e[1]), r1e[0], r1e[1]),
+      augmentPartialR2(r2[3] || predictedMatchup(r1e[2], r1e[3]), r1e[2], r1e[3]),
     ];
 
     const r2HasTeams = r2.some(s => s && s.topTeam !== 'TBD');
