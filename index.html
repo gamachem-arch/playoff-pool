@@ -152,6 +152,7 @@
   .soh-pct { color: var(--green); font-weight: 600; }
 
   .you-badge { position:absolute; top:6px; right:6px; font-size:7px; font-weight:800; letter-spacing:1px; text-transform:uppercase; padding:2px 5px; border-radius:4px; background:var(--surface2); color:var(--muted); }
+  .streak-badge { position:absolute; top:6px; left:6px; font-family:'Barlow Condensed',sans-serif; font-size:9px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; padding:2px 5px; border-radius:4px; border:1px solid; line-height:1.2; }
   .standing-card { position:relative; }
   .standing-card.me-card { box-shadow: 0 0 0 1.5px currentColor; }
   .loading { text-align: center; padding: 60px 20px; color: var(--muted); }
@@ -741,6 +742,45 @@ function buildPlayerSparkline(histData, teams, colorVar, liveTotal, W, H) {
   </svg>`;
 }
 
+function computePlayerStreak(histData, teams, liveTotal) {
+  if (!histData || histData.length < 2) return null;
+  const dates = [...new Set(histData.map(d => d.date).filter(Boolean))].sort();
+  if (dates.length < 2) return null;
+  const today = new Date().toISOString().substring(0,10);
+  const points = dates.map(date => {
+    if (date === today && liveTotal != null) return liveTotal;
+    return teams.reduce((sum, team) => {
+      const e = histData.find(d => d.date === date && (d.team||'').toUpperCase() === team.toUpperCase());
+      return sum + (e ? parseFloat(e.cup)||0 : 0);
+    }, 0);
+  });
+  if (!dates.includes(today) && liveTotal != null) points.push(liveTotal);
+  if (points.length < 2) return null;
+  const n = points.length - 1;
+  const lastDiff = points[n] - points[n-1];
+  if (Math.abs(lastDiff) < 0.05) return null;
+  const dir = lastDiff > 0 ? 1 : -1;
+  let count = 1;
+  for (let i = n - 1; i >= 1; i--) {
+    const diff = points[i] - points[i-1];
+    if (Math.abs(diff) < 0.05) break;
+    if ((diff > 0 ? 1 : -1) === dir) count++;
+    else break;
+  }
+  return count >= 2 ? {dir: dir > 0 ? 'up' : 'down', days: count} : null;
+}
+
+function buildStreakBadge(histData, teams, liveTotal) {
+  const streak = computePlayerStreak(histData, teams, liveTotal);
+  if (!streak) return '';
+  const isUp = streak.dir === 'up';
+  const arrow = isUp ? '▲' : '▼';
+  const fire = isUp && streak.days >= 3 ? ' 🔥' : '';
+  const color = isUp ? '#4ade80' : '#f87171';
+  const bg = isUp ? 'rgba(74,222,128,0.12)' : 'rgba(248,113,113,0.12)';
+  return `<div class="streak-badge" style="color:${color};background:${bg};border-color:${color}33">${arrow}${streak.days} DAYS${fire}</div>`;
+}
+
 function buildDetailChart(histData, series, gradId) {
   if (!histData || histData.length < 2 || !series || !series.length) return '';
   var today = new Date().toISOString().substring(0,10);
@@ -1182,6 +1222,54 @@ function showShareOverlay() {
   document.body.appendChild(overlay);
 }
 
+function buildRaceSparkline(histData, oddsMap) {
+  if (!histData || histData.length < 2) return '';
+  var today = new Date().toISOString().substring(0,10);
+  var dates = [...new Set(histData.map(function(d){return d.date;}).filter(Boolean))].sort();
+  if (!dates.includes(today)) dates.push(today);
+  if (dates.length < 2) return '';
+
+  var players = Object.keys(POOL).map(function(p) {
+    var teams = POOL[p];
+    var pts = dates.map(function(date) {
+      if (date === today) return teams.reduce(function(sum,t){return sum+parseFloat((oddsMap[t]||'0%').replace('%',''));},0);
+      return teams.reduce(function(sum,team){
+        var e=histData.find(function(d){return d.date===date&&(d.team||'').toUpperCase()===team.toUpperCase();});
+        return sum+(e?parseFloat(e.cup)||0:0);
+      },0);
+    });
+    return {player:p, points:pts};
+  });
+
+  var allPts=players.reduce(function(acc,p){return acc.concat(p.points);},[]);
+  var dataMin=Math.min.apply(null,allPts), dataMax=Math.max.apply(null,allPts);
+  var pad=Math.max(1,(dataMax-dataMin)*0.15);
+  var yMin=Math.max(0,dataMin-pad), yMax=Math.min(100,dataMax+pad);
+  if(yMax===yMin){yMin=0;yMax=50;}
+
+  var W=320,H=72,padL=4,padR=42,padT=6,padB=6;
+  var cW=W-padL-padR, cH=H-padT-padB, n=dates.length;
+  function gx(i){return padL+(n>1?(i/(n-1))*cW:cW/2);}
+  function gy(v){return padT+cH*(1-(v-yMin)/(yMax-yMin));}
+
+  var labels=players.map(function(p){
+    return {player:p.player, y:gy(p.points[p.points.length-1])};
+  }).sort(function(a,b){return a.y-b.y;});
+  for(var i=1;i<labels.length;i++){if(labels[i].y-labels[i-1].y<12)labels[i].y=labels[i-1].y+12;}
+  var labelY={};labels.forEach(function(l){labelY[l.player]=l.y;});
+
+  var lines=players.map(function(p){
+    var linePts=p.points.map(function(v,i){return gx(i).toFixed(1)+','+gy(v).toFixed(1);}).join(' ');
+    var lx=gx(n-1), dotY=gy(p.points[p.points.length-1]);
+    return '<polyline points="'+linePts+'" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+      +'<circle cx="'+lx.toFixed(1)+'" cy="'+dotY.toFixed(1)+'" r="2.5" fill="rgba(255,255,255,0.25)"/>'
+      +'<text x="'+(lx+6).toFixed(1)+'" y="'+(labelY[p.player]+4).toFixed(1)+'" font-size="9.5" font-weight="700" font-family="Barlow Condensed,sans-serif" style="fill:var(--'+p.player+')">'+p.player+'</text>';
+  }).join('');
+
+  return '<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);opacity:0.45">'
+    +'<svg width="85%" viewBox="0 0 '+W+' '+H+'" style="display:block;overflow:visible;margin:0 auto">'+lines+'</svg></div>';
+}
+
 function buildStandings(oddsMap, histData) {
   const me = getMyPlayer();
   const totals = Object.entries(POOL).map(([player, teams]) => {
@@ -1202,6 +1290,7 @@ function buildStandings(oddsMap, histData) {
       ${totals.map((p,i) => `
         <div class="standing-card ${i===0?'first':''} ${p.player===me?'me-card':''}" onclick="setMyPlayer('${p.player}')" style="cursor:pointer">
           ${p.player===me ? '<div class="you-badge">you</div>' : ''}
+          ${buildStreakBadge(histData, p.teams, p.total)}
           <div class="standing-rank">${ranks[i]}</div>
           <div style="display:flex;align-items:center;gap:4px"><span class="pool-pill pill-${p.player}">${p.player}</span><span style="font-size:9px;color:var(--muted)">${p.alive}/4</span></div>
           <div class="standing-name">${p.name}</div>
