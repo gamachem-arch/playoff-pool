@@ -937,7 +937,7 @@ function showSparklineDetail(player) {
     return '<span id="sdg-pill-'+p.player+'" '
       +(isPrimary?'':'onclick="toggleDetailPlayer(\''+p.player+'\')" ')
       +'class="pool-pill pill-'+p.player+'" '
-      +'style="font-size:12px;padding:4px 10px;opacity:'+(isPrimary?1:0.28)+';cursor:'+(isPrimary?'default':'pointer')+';transition:opacity .15s">'
+      +'style="font-size:11px;padding:3px 9px;opacity:'+(isPrimary?1:0.28)+';cursor:'+(isPrimary?'default':'pointer')+';transition:opacity .15s">'
       +p.player+'</span>';
   }).join('');
 
@@ -976,7 +976,7 @@ function showSparklineDetail(player) {
       +'<button onclick="document.getElementById(\'sparkline-detail-overlay\').remove()" style="background:rgba(255,255,255,0.08);border:none;color:#9ca3af;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:Inter,sans-serif;font-size:14px;flex-shrink:0">✕</button>'
     +'</div>'
     +'<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">'
-      +'<span style="font-size:10px;color:#4b5563;font-family:Inter,sans-serif">compare:</span>'
+      +'<span style="font-size:11px;color:#4b5563;font-family:\'Barlow Condensed\',sans-serif">compare:</span>'
       +pillsHtml
     +'</div>'
     +'<div id="sdg-chart-wrap" style="margin-bottom:20px;background:rgba(255,255,255,0.03);border-radius:12px;padding:12px 10px">'+chartSvg+'</div>'
