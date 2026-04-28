@@ -51,7 +51,9 @@
   .round-toggle { font-size: 10px; color: var(--muted); transition: transform 0.2s; display: inline-block; }
   .round-section.is-collapsed .round-toggle { transform: rotate(-90deg); }
   .round-body.collapsed { display: none; }
-  .series { cursor: pointer; }
+  .series { cursor: pointer; transition: opacity 0.2s; }
+  .series-dimmed { opacity: 0.35; }
+  .expand-all-btn { background: none; border: 1px solid var(--border); border-radius: 4px; color: var(--muted); font-family: 'Barlow Condensed', sans-serif; font-size: 9px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; padding: 2px 6px; }
   .series-games { border-top: 1px solid var(--border); padding: 6px 10px; display: none; }
   .series-games.open { display: block; }
   .game-row { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-family: 'Barlow Condensed', sans-serif; font-size: 11px; }
@@ -439,9 +441,38 @@ function fallbackParsed() {
   };
 }
 
+function toggleAllSeries(roundId, btn, e) {
+  e.stopPropagation();
+  var body = document.getElementById('rb-' + roundId);
+  if (!body) return;
+  var anyOpen = body.querySelector('.series-games.open');
+  body.querySelectorAll('.series-games').forEach(function(sg) {
+    anyOpen ? sg.classList.remove('open') : sg.classList.add('open');
+  });
+  body.querySelectorAll('.series').forEach(function(s) { s.classList.remove('series-dimmed'); });
+  btn.textContent = anyOpen ? 'expand all' : 'collapse all';
+}
+function syncExpandAllBtn(grid) {
+  var body = grid && grid.closest('.round-body');
+  if (!body) return;
+  var btn = document.getElementById('ea-' + body.id.replace('rb-', ''));
+  if (!btn) return;
+  btn.textContent = body.querySelector('.series-games.open') ? 'collapse all' : 'expand all';
+}
 function toggleSeriesGames(id) {
   var el = document.getElementById('sg-' + id);
-  if (el) el.classList.toggle('open');
+  if (!el) return;
+  var card = el.closest('.series');
+  var grid = card && card.parentElement;
+  el.classList.toggle('open');
+  if (grid) {
+    var anyOpen = grid.querySelector('.series-games.open');
+    grid.querySelectorAll('.series').forEach(function(s) {
+      var sg = s.querySelector('.series-games');
+      s.classList.toggle('series-dimmed', !!anyOpen && !(sg && sg.classList.contains('open')));
+    });
+    syncExpandAllBtn(grid);
+  }
 }
 function toggleTeamDetail(team) {
   var el = document.getElementById('td-' + team);
@@ -1125,7 +1156,10 @@ function makeRoundSection(id, title, bodyHtml, collapsed) {
   return `<div class="round-section${cls}" id="rs-${id}">
     <div class="round-header" onclick="toggleRound('${id}')">
       <div class="round-title">${title}</div>
-      <span class="round-toggle">▼</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="expand-all-btn" id="ea-${id}" onclick="toggleAllSeries('${id}',this,event)">expand all</button>
+        <span class="round-toggle">▼</span>
+      </div>
     </div>
     <div class="round-body${bodyCls}" id="rb-${id}">${bodyHtml}</div>
   </div>`;
