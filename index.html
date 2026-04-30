@@ -1022,7 +1022,7 @@ function toggleShareMenu() {
   var menu = document.getElementById('standings-share-menu');
   var btn  = document.getElementById('standings-share-btn');
   if (!menu) return;
-  var open = menu.style.maxHeight && menu.style.maxHeight !== '0px';
+  var open = btn.textContent === '✕';
   menu.style.maxWidth = open ? '0px' : '600px';
   menu.style.opacity  = open ? '0'   : '1';
   btn.textContent     = open ? '📤 Share' : '✕';
