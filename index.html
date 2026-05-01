@@ -92,7 +92,7 @@
   .series-header-inner { display: flex; align-items: center; justify-content: space-between; width: 100%; }
   .series-round { font-family: 'Barlow Condensed', sans-serif; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
   .team-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; }
-  .team-row + .team-row { border-top: 1px solid var(--border); }
+  .team-row + .team-row, .tbd-row + .team-row { border-top: 1px solid var(--border); }
   .pool-pill { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; padding: 2px 7px; border-radius: 20px; min-width: 34px; text-align: center; flex-shrink: 0; }
   .pill-CAT { background: var(--CAT-bg); color: var(--CAT); }
   .pill-MIC { background: var(--MIC-bg); color: var(--MIC); }
@@ -661,14 +661,15 @@ function seriesCard(s, label, oddsMap, gamesData, deltaMap, roundOdds, roundNum,
   const seriesHeader = (!dualSpark && (sr1||sr2)) ? `<div class="series-odds-header"><span class="soh-team">${t1}</span>&nbsp;<span class="soh-pct">${sr1}</span><span style="margin:0 4px;opacity:0.3">·</span><span class="soh-team">${t2}</span>&nbsp;<span class="soh-pct">${sr2}</span><span style="flex:1"></span>win</div>` : '';
   const isLive = isSeriesLive(gamesData, t1, t2);
   const liveDot = isLive ? '<span class="live-dot"></span>' : '';
+  const t1isPred = t1 && t1.includes('/');
   const t2isTBD = !t2 || t2 === 'TBD';
   const t2isPred = t2 && t2.includes('/');
-  let predRow2 = '';
-  if (t2isPred) {
-    const [pa, pb] = t2.split('/');
+  function predSlotHtml(team, borderTop) {
+    const [pa, pb] = team.split('/');
     const oa = roundOdds?.[pa]?.r2 || '';
     const ob = roundOdds?.[pb]?.r2 || '';
-    predRow2 = `<div class="tbd-row" style="border-top:1px solid var(--border);display:flex;align-items:center;justify-content:center;gap:2px">`
+    const bt = borderTop ? 'border-top:1px solid var(--border);' : '';
+    return `<div class="tbd-row" style="${bt}display:flex;align-items:center;justify-content:center;gap:2px">`
       + `<span style="opacity:0.6;font-weight:700;font-family:'Barlow Condensed',sans-serif;font-size:14px">${pa}</span>`
       + (oa ? `<span style="opacity:0.4;font-size:10px;margin-left:2px">${oa}</span>` : '')
       + `<span style="opacity:0.2;margin:0 6px">/</span>`
@@ -679,7 +680,7 @@ function seriesCard(s, label, oddsMap, gamesData, deltaMap, roundOdds, roundNum,
   const row2 = t2isTBD
     ? `<div class="tbd-row" style="border-top:1px solid var(--border)"><span class="tbd-text">TBD</span></div>`
     : t2isPred
-      ? predRow2
+      ? predSlotHtml(t2, true)
       : `<div class="team-row${t2won?' series-winner':t1won?' series-elim':''}">
       ${pill(t2)}
       <img class="tlogo" src="${logoBase}${t2}_light.svg" onerror="this.style.display='none'">
@@ -687,15 +688,18 @@ function seriesCard(s, label, oddsMap, gamesData, deltaMap, roundOdds, roundNum,
       <div class="odds-wrap">${deltaBadge(d2)}${o2?`<span class="team-odds">${o2}</span>`:''}</div>
       <span class="team-wins ${w2>w1?'leading':''}">${w2}</span>
     </div>`;
-  return `<div class="series${isLive?' live-series':''}" onclick="toggleSeriesGames('${sid}')">
-    <div class="series-header"><div class="series-header-inner"><div class="series-round">${liveDot}${label}</div>${getGameBadge(gamesData,t1,t2)}</div></div>
-    <div class="team-row${t1won?' series-winner':t2won?' series-elim':''}">
+  const row1 = t1isPred
+    ? predSlotHtml(t1, false)
+    : `<div class="team-row${t1won?' series-winner':t2won?' series-elim':''}">
       ${pill(t1)}
       <img class="tlogo" src="${logoBase}${t1}_light.svg" onerror="this.style.display='none'">
       <span class="team-name ${t2won?'eliminated':''} ${t1won?'champion':''}">${t1}</span>
       <div class="odds-wrap">${deltaBadge(d1)}${o1?`<span class="team-odds">${o1}</span>`:''}</div>
       <span class="team-wins ${w1>w2?'leading':''}">${w1}</span>
-    </div>
+    </div>`;
+  return `<div class="series${isLive?' live-series':''}" onclick="toggleSeriesGames('${sid}')">
+    <div class="series-header"><div class="series-header-inner"><div class="series-round">${liveDot}${label}</div>${getGameBadge(gamesData,t1,t2)}</div></div>
+    ${row1}
     ${row2}
     <div class="series-games" id="sg-${sid}">${dualSpark}${seriesHeader}${buildSeriesGames(t1,t2,gamesData)}</div>
   </div>`;
@@ -1809,20 +1813,35 @@ function buildBracketCard(s, gamesData, isLarge, shareMode, isCompact) {
   if (isCompact && !shareMode) {
     var t1loser = w2 === 4, t2loser = w1 === 4;
     var t1win = w1 === 4, t2win = w2 === 4;
+    var t1isPredC = t1 && t1.includes('/');
+    var t2isPredC = t2 && t2.includes('/');
     return '<div class="bc-card bc-card-sm' + (live ? ' bc-live' : '') + '">'
-      + '<div class="bc-team' + (t1loser ? ' bc-loser' : t1win ? ' bc-winner' : '') + '" style="border-left-color:' + (c1||'transparent') + '">'
-      + '<img class="bc-logo" src="https://assets.nhle.com/logos/nhl/svg/' + t1 + '_light.svg" onerror="this.style.display=\'none\'">'
-      + p1pill + '</div>'
-      + '<div class="bc-team' + (t2loser ? ' bc-loser' : t2win ? ' bc-winner' : '') + '" style="border-left-color:' + (c2||'transparent') + '">'
-      + '<img class="bc-logo" src="https://assets.nhle.com/logos/nhl/svg/' + t2 + '_light.svg" onerror="this.style.display=\'none\'">'
-      + p2pill + '</div>'
+      + (t1isPredC
+        ? '<div class="bc-team"><span class="bc-name" style="opacity:0.45;font-size:10px">' + t1 + '</span></div>'
+        : '<div class="bc-team' + (t1loser ? ' bc-loser' : t1win ? ' bc-winner' : '') + '" style="border-left-color:' + (c1||'transparent') + '">'
+          + '<img class="bc-logo" src="https://assets.nhle.com/logos/nhl/svg/' + t1 + '_light.svg" onerror="this.style.display=\'none\'">'
+          + p1pill + '</div>')
+      + (t2isPredC
+        ? '<div class="bc-team"><span class="bc-name" style="opacity:0.45;font-size:10px">' + t2 + '</span></div>'
+        : '<div class="bc-team' + (t2loser ? ' bc-loser' : t2win ? ' bc-winner' : '') + '" style="border-left-color:' + (c2||'transparent') + '">'
+          + '<img class="bc-logo" src="https://assets.nhle.com/logos/nhl/svg/' + t2 + '_light.svg" onerror="this.style.display=\'none\'">'
+          + p2pill + '</div>')
       + '</div>';
   }
   var gamesHtml = (!shareMode && gamesData) ? buildBracketGames(t1, t2, gamesData) : '';
   var clickAttr = (!shareMode && gamesHtml) ? ' onclick="toggleBracketCard(this)"' : '';
   var t1win = w1 === 4, t2win = w2 === 4;
+  var t1isPred = t1 && t1.includes('/');
   var t2isTBD = !t2 || t2 === 'TBD';
   var t2isPred = t2 && t2.includes('/');
+  var row1 = t1isPred
+    ? '<div class="bc-team"><span class="bc-name" style="opacity:0.45">' + t1 + '</span></div>'
+    : '<div class="bc-team' + (t1elim ? ' bc-elim' : t1win ? ' bc-winner' : '') + '" style="border-left-color:' + (c1||'transparent') + '">'
+      + '<img class="bc-logo" src="https://assets.nhle.com/logos/nhl/svg/' + t1 + '_light.svg" onerror="this.style.display=\'none\'">'
+      + '<span class="bc-name">' + t1 + '</span>'
+      + p1pill
+      + '<span class="bc-wins' + (t1lead ? ' bc-lead' : '') + '">' + w1 + '</span>'
+      + '</div>';
   var row2 = t2isTBD
     ? '<div class="bc-team" style="justify-content:center"><span class="bc-name" style="color:var(--muted);font-weight:400">TBD</span></div>'
     : t2isPred
@@ -1834,12 +1853,7 @@ function buildBracketCard(s, gamesData, isLarge, shareMode, isCompact) {
       + '<span class="bc-wins' + (t2lead ? ' bc-lead' : '') + '">' + w2 + '</span>'
       + '</div>';
   return '<div class="bc-card' + (live ? ' bc-live' : '') + (isLarge ? ' bc-card-lg' : '') + '"' + clickAttr + '>'
-    + '<div class="bc-team' + (t1elim ? ' bc-elim' : t1win ? ' bc-winner' : '') + '" style="border-left-color:' + (c1||'transparent') + '">'
-    + '<img class="bc-logo" src="https://assets.nhle.com/logos/nhl/svg/' + t1 + '_light.svg" onerror="this.style.display=\'none\'">'
-    + '<span class="bc-name">' + t1 + '</span>'
-    + p1pill
-    + '<span class="bc-wins' + (t1lead ? ' bc-lead' : '') + '">' + w1 + '</span>'
-    + '</div>'
+    + row1
     + row2
     + (gamesHtml ? '<div class="bc-games-wrap">' + gamesHtml + '</div>' : '')
     + '</div>';
