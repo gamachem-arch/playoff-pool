@@ -2048,7 +2048,7 @@ async function render() {
     ];
 
     const r2HasTeams = r2.some(s => s && s.topTeam !== 'TBD');
-    const r2AllTeams = r2.every(s => s && s.topTeam !== 'TBD');
+    const r2AllTeams = r2.every(s => s && s.topTeam !== 'TBD' && s.bottomTeam !== 'TBD');
     const r3HasTeams = r3.some(s => s && s.topTeam !== 'TBD');
     const r4HasTeams = r4 && r4.topTeam !== 'TBD';
 
