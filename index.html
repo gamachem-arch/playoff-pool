@@ -1696,8 +1696,9 @@ function renderLiveGameOverlay(overlay, data, away, home) {
     var hs2=Math.round(c.homeCloseShots*1000)/10, as2=Math.round((1-c.homeCloseShots)*1000)/10;
     html+='<div style="background:rgba(255,255,255,0.03);border-radius:10px;padding:10px 10px 2px;margin-bottom:12px">';
     html+='<div style="font-size:10px;color:#6b7280;font-family:\'Barlow Condensed\',sans-serif;letter-spacing:.5px;margin-bottom:8px">GAME CONTROL</div>';
-    var awayColor=awayPlayer?'var(--'+awayPlayer+')':'rgba(255,255,255,0.3)';
-    var homeColor=homePlayer?'var(--'+homePlayer+')':'rgba(255,255,255,0.15)';
+    var _pc={MIC:'#10b981',CAT:'#ec4899',MAR:'#f59e0b',DAN:'#a855f7'};
+    var awayColor=(_pc[awayPlayer])||'rgba(255,255,255,0.3)';
+    var homeColor=(_pc[homePlayer])||'rgba(255,255,255,0.15)';
     html+=buildDualBar('Zone Control',az,hz,away,home,awayColor,homeColor)+buildDualBar('Shot Quality',as2,hs2,away,home,awayColor,homeColor);
     html+='</div>';
   }
