@@ -1567,8 +1567,8 @@ function buildWinProbChart(timeline, goals) {
 }
 function buildDualBar(label, leftPct, rightPct, leftTeam, rightTeam) {
   var leftW=(leftPct/(leftPct+rightPct||1)*100).toFixed(1);
-  var lLogo=leftTeam?'<img src="https://assets.nhle.com/logos/nhl/svg/'+leftTeam+'_light.svg" style="width:16px;height:16px;object-fit:contain;flex-shrink:0" onerror="this.style.display=\'none\'">':'';
-  var rLogo=rightTeam?'<img src="https://assets.nhle.com/logos/nhl/svg/'+rightTeam+'_light.svg" style="width:16px;height:16px;object-fit:contain;flex-shrink:0" onerror="this.style.display=\'none\'">':'';
+  var lLogo=leftTeam?'<img src="https://assets.nhle.com/logos/nhl/svg/'+leftTeam+'_light.svg" style="width:22px;height:22px;object-fit:contain;flex-shrink:0" onerror="this.style.display=\'none\'">':'';
+  var rLogo=rightTeam?'<img src="https://assets.nhle.com/logos/nhl/svg/'+rightTeam+'_light.svg" style="width:22px;height:22px;object-fit:contain;flex-shrink:0" onerror="this.style.display=\'none\'">':'';
   return '<div style="margin-bottom:10px">'
     +'<div style="font-size:10px;color:#6b7280;font-family:\'Barlow Condensed\',sans-serif;letter-spacing:.3px;margin-bottom:4px">'+label+'</div>'
     +'<div style="display:flex;align-items:center;gap:5px">'
@@ -1646,8 +1646,8 @@ function renderLiveGameOverlay(overlay, data, away, home) {
   var awayAdv=round===1?c.liveAwayMakeR2:round===2?c.liveAwayMakeR3:round===3?c.liveAwayMakeR4:c.liveAwayWinCup;
   var awayPill=awayPlayer?'<span class="pool-pill pill-'+awayPlayer+'" style="font-size:10px;padding:1px 5px">'+awayPlayer+'</span>':'';
   var homePill=homePlayer?'<span class="pool-pill pill-'+homePlayer+'" style="font-size:10px;padding:1px 5px">'+homePlayer+'</span>':'';
-  var logoUrl=function(t){return'<img src="https://assets.nhle.com/logos/nhl/svg/'+t+'_light.svg" style="width:28px;height:28px;object-fit:contain;vertical-align:middle" onerror="this.style.display=\'none\'">';};
-  var logoSm=function(t){return'<img src="https://assets.nhle.com/logos/nhl/svg/'+t+'_light.svg" style="width:20px;height:20px;object-fit:contain;vertical-align:middle;flex-shrink:0" onerror="this.style.display=\'none\'">';};
+  var logoUrl=function(t){return'<img src="https://assets.nhle.com/logos/nhl/svg/'+t+'_light.svg" style="width:40px;height:40px;object-fit:contain;vertical-align:middle" onerror="this.style.display=\'none\'">';};
+  var logoSm=function(t){return'<img src="https://assets.nhle.com/logos/nhl/svg/'+t+'_light.svg" style="width:28px;height:28px;object-fit:contain;vertical-align:middle;flex-shrink:0" onerror="this.style.display=\'none\'">';};
   var html='<div style="max-width:480px;margin:0 auto">';
   // Header
   html+='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">';
