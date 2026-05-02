@@ -1869,7 +1869,7 @@ function buildBracketCard(s, gamesData, isLarge, shareMode, isCompact) {
   var bg2 = c2 ? hexToRgba(c2, 0.2) : null;
   var p1pill = o1 ? '<span class="bc-pill" style="background:' + bg1 + ';color:' + c1 + '">' + o1 + '</span>' : '';
   var p2pill = o2 ? '<span class="bc-pill" style="background:' + bg2 + ';color:' + c2 + '">' + o2 + '</span>' : '';
-  if (isCompact && !shareMode) {
+  if (isCompact) {
     var t1loser = w2 === 4, t2loser = w1 === 4;
     var t1win = w1 === 4, t2win = w2 === 4;
     var t1isPredC = t1 && t1.includes('/');
